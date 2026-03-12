@@ -96,7 +96,7 @@ tr:hover td { background: #1e293b; }
 <div class="chart-container"><h2>Crop Prices</h2><div id="crop-table"><div class="loading">Loading...</div></div></div>
 </div>
 <div id="compare" class="section">
-<div class="chart-container"><h2>Fed Cattle Comparison</h2><canvas id="crossChart"></canvas></div>
+<div class="chart-container"><h2>Benchmark Cattle Comparison (All Countries)</h2><canvas id="crossChart"></canvas></div>
 <div class="chart-container"><h2>Crop Price Comparison</h2><canvas id="cropCompareChart"></canvas></div>
 </div>
 </div>
@@ -140,10 +140,10 @@ async function loadSummary() {
     '<div class="card"><h3>Crop Records</h3><div class="value">'+d.crop_records+'</div><div class="sub">'+d.crop_types+' crop types</div></div>';
 }
 async function loadCompareChart() {
-  const data = await fetchJSON(API+'/prices/compare?livestock_class=Fed Cattle');
+  const data = await fetchJSON(API+'/prices/benchmark');
   if (compareChart) compareChart.destroy();
   compareChart = new Chart(document.getElementById('compareChart'), {
-    type: 'bar', data: { labels: data.map(d=>(FLAGS[d.country]||'')+' '+NAMES[d.country]), datasets: [{label:'USD/kg',data:data.map(d=>d.price_per_kg_usd),backgroundColor:COLORS.slice(0,data.length),borderRadius:6}] },
+    type: 'bar', data: { labels: data.map(d=>(FLAGS[d.country]||'')+' '+d.livestock_class)||'')+' '+NAMES[d.country]), datasets: [{label:'USD/kg',data:data.map(d=>d.price_per_kg_usd),backgroundColor:COLORS.slice(0,data.length),borderRadius:6}] },
     options: { responsive:true, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}}, x:{ticks:{color:'#94a3b8'},grid:{display:false}} } }
   });
 }
@@ -165,10 +165,10 @@ async function loadCropPrices() {
   document.getElementById('crop-table').innerHTML = makeTable(['Country','Region','Crop','USD/t','Local/t','Delivery','Date'],rows);
 }
 async function loadCrossCountry() {
-  const cattle = await fetchJSON(API+'/prices/compare?livestock_class=Fed Cattle');
+  const cattle = await fetchJSON(API+'/prices/benchmark');
   if (crossChart) crossChart.destroy();
   crossChart = new Chart(document.getElementById('crossChart'), {
-    type:'bar', data:{labels:cattle.map(d=>(FLAGS[d.country]||'')+' '+NAMES[d.country]),datasets:[{label:'USD/kg',data:cattle.map(d=>d.price_per_kg_usd),backgroundColor:COLORS,borderRadius:6}]},
+    type:'bar', data:{labels:cattle.map(d=>(FLAGS[d.country]||'')+' '+d.livestock_class),datasets:[{label:'USD/kg',data:cattle.map(d=>d.price_per_kg_usd),backgroundColor:COLORS,borderRadius:6}]},
     options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}},y:{ticks:{color:'#e2e8f0'},grid:{display:false}}}}
   });
   const soy = await fetchJSON(API+'/crops/compare?crop_type=Soybeans');
