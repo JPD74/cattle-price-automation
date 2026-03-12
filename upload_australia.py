@@ -4,22 +4,21 @@ Upload Australian Cattle Prices to Railway PostgreSQL Database
 Source: MLA (Meat & Livestock Australia) - National Livestock Reporting Service
 Data collected: March 2026 via agent-based web browsing
 """
-
 import os
 import psycopg
 from datetime import datetime
 
 # Australian cattle price data (collected via agent on 2026-03-12)
 # Source: MLA NLRS - Eastern Young Cattle Indicator
-# Prices for various cattle classes across regions
 australia_prices = [
     {
         "date": "2026-03-11",
         "country": "AU",
         "region": "Eastern Australia",
-        "livestock_class": "EYCI - Young Cattle (200-400kg)",
-        "price_per_kg_aud": 7.85,  # AUD ¢785/kg dressed weight
-        "price_per_kg_usd": 5.10,  # USD conversion @ 0.65 AUD/USD
+        "livestock_class": "EYCI - Young Cattle",
+        "weight_category": "200-400kg",
+        "price_per_kg_local": 7.85,
+        "price_per_kg_usd": 5.10,
         "local_currency": "AUD",
         "data_source": "MLA/NLRS"
     },
@@ -27,8 +26,9 @@ australia_prices = [
         "date": "2026-03-11",
         "country": "AU",
         "region": "Queensland",
-        "livestock_class": "Heavy Steers (> 600kg)",
-        "price_per_kg_aud": 6.95,  # AUD ¢695/kg liveweight
+        "livestock_class": "Heavy Steers",
+        "weight_category": ">600kg",
+        "price_per_kg_local": 6.95,
         "price_per_kg_usd": 4.52,
         "local_currency": "AUD",
         "data_source": "MLA/NLRS"
@@ -37,8 +37,9 @@ australia_prices = [
         "date": "2026-03-11",
         "country": "AU",
         "region": "New South Wales",
-        "livestock_class": "Medium Steers (400-600kg)",
-        "price_per_kg_aud": 7.20,  # AUD ¢720/kg liveweight
+        "livestock_class": "Medium Steers",
+        "weight_category": "400-600kg",
+        "price_per_kg_local": 7.20,
         "price_per_kg_usd": 4.68,
         "local_currency": "AUD",
         "data_source": "MLA/NLRS"
@@ -47,8 +48,9 @@ australia_prices = [
         "date": "2026-03-11",
         "country": "AU",
         "region": "Victoria",
-        "livestock_class": "Grainfed Cattle (300-450kg)",
-        "price_per_kg_aud": 7.50,  # AUD ¢750/kg liveweight
+        "livestock_class": "Grainfed Cattle",
+        "weight_category": "300-450kg",
+        "price_per_kg_local": 7.50,
         "price_per_kg_usd": 4.88,
         "local_currency": "AUD",
         "data_source": "MLA/NLRS"
@@ -56,60 +58,57 @@ australia_prices = [
 ]
 
 def upload_to_database():
-    """Upload Australian cattle prices to Railway PostgreSQL database"""
-    
-    # Get database connection from Railway environment variable
     DATABASE_URL = os.getenv('DATABASE_URL')
-    
     if not DATABASE_URL:
-        print("❌ ERROR: DATABASE_URL not found")
+        print("ERROR: DATABASE_URL not found")
         return
-    
+
     try:
-        # Connect to Railway PostgreSQL database
         conn = psycopg.connect(DATABASE_URL, sslmode='disable')
         cur = conn.cursor()
-        
-        print("✅ Connected to Railway PostgreSQL database")
-        print(f"🇦🇺 Uploading {len(australia_prices)} Australian cattle price records...\n")
-        
-        uploaded_count = 0
-        
-        # Insert each price record
-        for record in australia_prices:
+        print("Connected to Railway PostgreSQL database")
+        print(f"Uploading {len(australia_prices)} Australian cattle price records...\n")
+
+        uploaded = 0
+        skipped = 0
+
+        for r in australia_prices:
+            # Check for existing record (dedup by country+date+class+region)
             cur.execute("""
-                INSERT INTO cattle_prices 
-                (country, region, livestock_class, price_per_kg_local, 
-                 price_per_kg_usd, local_currency, data_source, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                SELECT id FROM cattle_prices
+                WHERE country = %s AND timestamp::date = %s::date
+                AND livestock_class = %s AND region = %s
+            """, (r['country'], r['date'], r['livestock_class'], r['region']))
+
+            if cur.fetchone():
+                skipped += 1
+                print(f"SKIP (exists): {r['date']} | {r['livestock_class']} | {r['region']}")
+                continue
+
+            cur.execute("""
+                INSERT INTO cattle_prices
+                (country, region, livestock_class, weight_category,
+                 price_per_kg_local, price_per_kg_usd, local_currency,
+                 data_source, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                record['country'],
-                record['region'],
-                record['livestock_class'],
-                record['price_per_kg_aud'],
-                record['price_per_kg_usd'],
-                record['local_currency'],
-                record['data_source'],
-                record['date']
+                r['country'], r['region'], r['livestock_class'],
+                r['weight_category'], r['price_per_kg_local'],
+                r['price_per_kg_usd'], r['local_currency'],
+                r['data_source'], r['date']
             ))
-            
-            uploaded_count += 1
-            print(f"✅ Uploaded: {record['date']} | {record['livestock_class']} | "
-                  f"AU$ {record['price_per_kg_aud']:.2f}/kg | ${record['price_per_kg_usd']:.2f}/kg")
-        
-        # Commit the transaction
+            uploaded += 1
+            print(f"Uploaded: {r['date']} | {r['livestock_class']} ({r['weight_category']}) | "
+                  f"AU$ {r['price_per_kg_local']:.2f}/kg | ${r['price_per_kg_usd']:.2f}/kg")
+
         conn.commit()
-        
-        print(f"\n🎉 SUCCESS! Uploaded {uploaded_count} Australian price records to database")
-        print(f"📊 Source: MLA/NLRS - Collected on March 12, 2026")
-        
-        # Close connection
+        print(f"\nSUCCESS! Uploaded {uploaded}, skipped {skipped} duplicates")
+        print(f"Source: MLA/NLRS - Collected on March 12, 2026")
         cur.close()
         conn.close()
-        
+
     except Exception as e:
-        print(f"❌ ERROR uploading to database: {e}")
-        return
+        print(f"ERROR: {e}")
 
 if __name__ == "__main__":
     upload_to_database()
