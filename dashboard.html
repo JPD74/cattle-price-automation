@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agricultural Price Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+.header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 24px 32px; border-bottom: 1px solid #334155; }
+.header h1 { font-size: 24px; color: #f8fafc; }
+.header p { color: #94a3b8; margin-top: 4px; font-size: 14px; }
+.tabs { display: flex; gap: 8px; padding: 16px 32px; background: #1e293b; border-bottom: 1px solid #334155; }
+.tab { padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; background: transparent; color: #94a3b8; border: 1px solid transparent; transition: all 0.2s; }
+.tab:hover { color: #e2e8f0; background: #334155; }
+.tab.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+.content { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 24px; }
+.card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+.card h3 { font-size: 14px; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.card .value { font-size: 32px; font-weight: 700; color: #f8fafc; }
+.card .sub { font-size: 13px; color: #64748b; margin-top: 4px; }
+.chart-container { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+.chart-container h2 { font-size: 18px; margin-bottom: 16px; color: #f8fafc; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 12px 16px; background: #334155; color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+th:first-child { border-radius: 8px 0 0 0; }
+th:last-child { border-radius: 0 8px 0 0; }
+td { padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+tr:hover td { background: #1e293b; }
+.flag { margin-right: 6px; }
+.price-usd { color: #4ade80; font-weight: 600; }
+.price-local { color: #94a3b8; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge-au { background: #422006; color: #fbbf24; }
+.badge-br { background: #052e16; color: #4ade80; }
+.badge-us { background: #172554; color: #60a5fa; }
+.badge-nz { background: #0c0a09; color: #e7e5e4; }
+.badge-uy { background: #1e1b4b; color: #a5b4fc; }
+.badge-ar { background: #3b0764; color: #d8b4fe; }
+.badge-py { background: #450a0a; color: #fca5a5; }
+.section { display: none; }
+.section.active { display: block; }
+.loading { text-align: center; padding: 60px; color: #64748b; }
+.filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.filters select { padding: 8px 12px; border-radius: 6px; background: #334155; color: #e2e8f0; border: 1px solid #475569; font-size: 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="header">
+<h1>Agricultural Price Dashboard</h1>
+<p>Real-time cattle and crop prices across AU, NZ, BR, PY, UY, AR, US</p>
+</div>
+<div class="tabs">
+<div class="tab active" onclick="showTab('overview')">Overview</div>
+<div class="tab" onclick="showTab('cattle')">Cattle Prices</div>
+<div class="tab" onclick="showTab('crops')">Crop Prices</div>
+<div class="tab" onclick="showTab('compare')">Cross-Country</div>
+</div>
+<div class="content">
+<div id="overview" class="section active">
+<div class="grid" id="summary-cards"><div class="loading">Loading summary...</div></div>
+<div class="chart-container"><h2>Cattle Price Comparison (USD/kg)</h2><canvas id="compareChart"></canvas></div>
+<div class="chart-container"><h2>Latest Prices by Country</h2><div id="latest-table"><div class="loading">Loading...</div></div></div>
+</div>
+<div id="cattle" class="section">
+<div class="filters"><select id="cattle-country" onchange="loadCattlePrices()"><option value="">All Countries</option><option value="AU">Australia</option><option value="NZ">New Zealand</option><option value="BR">Brazil</option><option value="PY">Paraguay</option><option value="UY">Uruguay</option><option value="AR">Argentina</option><option value="US">USA</option></select></div>
+<div class="chart-container"><h2>Cattle Prices</h2><div id="cattle-table"><div class="loading">Loading...</div></div></div>
+</div>
+<div id="crops" class="section">
+<div class="filters"><select id="crop-type" onchange="loadCropPrices()"><option value="">All Crops</option><option value="Soybeans">Soybeans</option><option value="Corn">Corn</option><option value="Wheat">Wheat</option><option value="Cotton">Cotton</option><option value="Rice">Rice</option><option value="Sorghum">Sorghum</option><option value="Barley">Barley</option></select></div>
+<div class="chart-container"><h2>Crop Prices</h2><div id="crop-table"><div class="loading">Loading...</div></div></div>
+</div>
+<div id="compare" class="section">
+<div class="chart-container"><h2>Fed Cattle - Cross Country Comparison</h2><canvas id="crossChart"></canvas></div>
+<div class="chart-container"><h2>Crop Price Comparison</h2><canvas id="cropCompareChart"></canvas></div>
+</div>
+</div>
+<script>
+const API = window.location.origin;
+const FLAGS = {AU:'\ud83c\udde6\ud83c\uddfa',NZ:'\ud83c\uddf3\ud83c\uddff',BR:'\ud83c\udde7\ud83c\uddf7',PY:'\ud83c\uddf5\ud83c\uddfe',UY:'\ud83c\uddfa\ud83c\uddfe',AR:'\ud83c\udde6\ud83c\uddf7',US:'\ud83c\uddfa\ud83c\uddf8'};
+const NAMES = {AU:'Australia',NZ:'New Zealand',BR:'Brazil',PY:'Paraguay',UY:'Uruguay',AR:'Argentina',US:'USA'};
+const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4'];
+let compareChart, crossChart, cropCompareChart;
+function showTab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  if (id === 'cattle') loadCattlePrices();
+  if (id === 'crops') loadCropPrices();
+  if (id === 'compare') loadCrossCountry();
+}
+async function fetchJSON(url) { const r = await fetch(url); return r.json(); }
+function makeTable(headers, rows) {
+  let h = '<table><thead><tr>' + headers.map(x => '<th>'+x+'</th>').join('') + '</tr></thead><tbody>';
+  h += rows.map(r => '<tr>' + r.map(c => '<td>'+c+'</td>').join('') + '</tr>').join('');
+  return h + '</tbody></table>';
+}
+function badge(c) { return '<span class="badge badge-'+c.toLowerCase()+'">'+(FLAGS[c]||'')+' '+c+'</span>'; }
+async function loadSummary() {
+  const d = await fetchJSON(API+'/summary');
+  document.getElementById('summary-cards').innerHTML =
+    '<div class="card"><h3>Cattle Records</h3><div class="value">'+d.cattle_records+'</div><div class="sub">'+d.countries+' countries, '+d.regions+' regions</div></div>'+
+    '<div class="card"><h3>Livestock Classes</h3><div class="value">'+d.livestock_classes+'</div><div class="sub">Across all countries</div></div>'+
+    '<div class="card"><h3>Date Range</h3><div class="value">'+d.date_range.from+'</div><div class="sub">to '+d.date_range.to+'</div></div>'+
+    '<div class="card"><h3>Crop Records</h3><div class="value">'+d.crop_records+'</div><div class="sub">'+d.crop_types+' crop types</div></div>';
+}
+async function loadCompareChart() {
+  const data = await fetchJSON(API+'/prices/compare?livestock_class=Fed Cattle');
+  if (compareChart) compareChart.destroy();
+  compareChart = new Chart(document.getElementById('compareChart'), {
+    type: 'bar',
+    data: { labels: data.map(d => (FLAGS[d.country]||'')+' '+NAMES[d.country]),
+      datasets: [{ label: 'USD/kg', data: data.map(d => d.price_per_kg_usd), backgroundColor: COLORS.slice(0, data.length), borderRadius: 6 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => '$'+v }, grid: { color: '#1e293b' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } }
+    }
+  });
+}
+async function loadLatestTable() {
+  const data = await fetchJSON(API+'/prices/latest');
+  const rows = data.map(d => [badge(d.country), d.region, d.livestock_class, d.weight_category, '<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>', '<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>', d.date]);
+  document.getElementById('latest-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'], rows);
+}
+async function loadCattlePrices() {
+  const c = document.getElementById('cattle-country').value;
+  const data = await fetchJSON(API+'/prices?limit=200'+(c ? '&country='+c : ''));
+  const rows = data.map(d => [badge(d.country), d.region, d.livestock_class, d.weight_category, '<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>', '<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>', d.date]);
+  document.getElementById('cattle-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'], rows);
+}
+async function loadCropPrices() {
+  const crop = document.getElementById('crop-type').value;
+  const data = await fetchJSON(API+'/crops?limit=200'+(crop ? '&crop_type='+crop : ''));
+  const rows = data.map(d => [badge(d.country), d.region||'-', d.crop_type, '<span class="price-usd">$'+d.price_per_tonne_usd.toFixed(2)+'</span>', '<span class="price-local">'+d.price_per_tonne_local.toFixed(2)+' '+d.local_currency+'</span>', d.delivery_period||'-', d.date]);
+  document.getElementById('crop-table').innerHTML = makeTable(['Country','Region','Crop','USD/t','Local/t','Delivery','Date'], rows);
+}
+async function loadCrossCountry() {
+  const cattle = await fetchJSON(API+'/prices/compare?livestock_class=Fed Cattle');
+  if (crossChart) crossChart.destroy();
+  crossChart = new Chart(document.getElementById('crossChart'), {
+    type: 'bar',
+    data: { labels: cattle.map(d => (FLAGS[d.country]||'')+' '+NAMES[d.country]),
+      datasets: [{ label: 'USD/kg', data: cattle.map(d => d.price_per_kg_usd), backgroundColor: COLORS, borderRadius: 6 }]
+    },
+    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => '$'+v }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#e2e8f0' }, grid: { display: false } } }
+    }
+  });
+  const soy = await fetchJSON(API+'/crops/compare?crop_type=Soybeans');
+  const corn = await fetchJSON(API+'/crops/compare?crop_type=Corn');
+  if (cropCompareChart) cropCompareChart.destroy();
+  const ac = [...new Set([...soy.map(d=>d.country),...corn.map(d=>d.country)])];
+  cropCompareChart = new Chart(document.getElementById('cropCompareChart'), {
+    type: 'bar',
+    data: { labels: ac.map(c => (FLAGS[c]||'')+' '+NAMES[c]),
+      datasets: [
+        { label: 'Soybeans (USD/t)', data: ac.map(c => { const f=soy.find(d=>d.country===c); return f?f.price_per_tonne_usd:0; }), backgroundColor: '#10b981', borderRadius: 6 },
+        { label: 'Corn (USD/t)', data: ac.map(c => { const f=corn.find(d=>d.country===c); return f?f.price_per_tonne_usd:0; }), backgroundColor: '#f59e0b', borderRadius: 6 }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => '$'+v }, grid: { color: '#1e293b' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } }
+    }
+  });
+}
+loadSummary(); loadCompareChart(); loadLatestTable();
+</script>
+</body>
+</html>
