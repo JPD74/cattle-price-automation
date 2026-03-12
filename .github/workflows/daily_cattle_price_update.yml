@@ -59,8 +59,26 @@ jobs:
         run: |
           python upload_uruguay.py
 
+      - name: Upload Argentina cattle prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_argentina.py
+
+      - name: Upload USA cattle prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_usa.py
+
+      - name: Upload crop prices (all countries)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_crops.py
+
       - name: Summary
         run: |
-          echo "Cattle price data collection complete!"
-          echo "Countries: AU, NZ, BR, PY, UY"
+                    echo "Cattle & crop price data collection complete!"
+                    echo "Countries: AU, NZ, BR, PY, UY, AR, US"
           echo "Database: Railway PostgreSQL"
