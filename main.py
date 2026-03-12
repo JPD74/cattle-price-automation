@@ -22,7 +22,7 @@ def setup_database():
     """Create tables if they don't exist"""
     print("\n[SETUP] Setting up database tables...")
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg.connect(DATABASE_URL)
         cur = conn.cursor()
         
         # Read and execute setup SQL
@@ -77,7 +77,7 @@ def collect_test_data():
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🇦🇺 Starting Australia data collection...")
     
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg.connect(DATABASE_URL)
         cur = conn.cursor()
         
         # Get current exchange rate
