@@ -2,59 +2,39 @@
 """
 Upload Australian Cattle Prices to Railway PostgreSQL Database
 Source: MLA (Meat & Livestock Australia) - National Livestock Reporting Service
-Data collected: March 2026 via agent-based web browsing
 """
 import os
 import psycopg
 from datetime import datetime
+from fx_rates import get_usd_rates, to_usd
 
-# Australian cattle price data (collected via agent on 2026-03-12)
-# Source: MLA NLRS - Eastern Young Cattle Indicator
+# Australian cattle price data - expanded classes
+# Source: MLA NLRS - collected via agent on 2026-03-12
 australia_prices = [
-    {
-        "date": "2026-03-11",
-        "country": "AU",
-        "region": "Eastern Australia",
-        "livestock_class": "EYCI - Young Cattle",
-        "weight_category": "200-400kg",
-        "price_per_kg_local": 7.85,
-        "price_per_kg_usd": 5.10,
-        "local_currency": "AUD",
-        "data_source": "MLA/NLRS"
-    },
-    {
-        "date": "2026-03-11",
-        "country": "AU",
-        "region": "Queensland",
-        "livestock_class": "Heavy Steers",
-        "weight_category": ">600kg",
-        "price_per_kg_local": 6.95,
-        "price_per_kg_usd": 4.52,
-        "local_currency": "AUD",
-        "data_source": "MLA/NLRS"
-    },
-    {
-        "date": "2026-03-11",
-        "country": "AU",
-        "region": "New South Wales",
-        "livestock_class": "Medium Steers",
-        "weight_category": "400-600kg",
-        "price_per_kg_local": 7.20,
-        "price_per_kg_usd": 4.68,
-        "local_currency": "AUD",
-        "data_source": "MLA/NLRS"
-    },
-    {
-        "date": "2026-03-11",
-        "country": "AU",
-        "region": "Victoria",
-        "livestock_class": "Grainfed Cattle",
-        "weight_category": "300-450kg",
-        "price_per_kg_local": 7.50,
-        "price_per_kg_usd": 4.88,
-        "local_currency": "AUD",
-        "data_source": "MLA/NLRS"
-    }
+    {"date": "2026-03-11", "country": "AU", "region": "Eastern Australia",
+     "livestock_class": "EYCI - Young Cattle", "weight_category": "200-400kg",
+     "price_per_kg_local": 7.85, "local_currency": "AUD", "data_source": "MLA/NLRS"},
+    {"date": "2026-03-11", "country": "AU", "region": "Queensland",
+     "livestock_class": "Heavy Steers", "weight_category": ">600kg",
+     "price_per_kg_local": 6.95, "local_currency": "AUD", "data_source": "MLA/NLRS"},
+    {"date": "2026-03-11", "country": "AU", "region": "New South Wales",
+     "livestock_class": "Medium Steers", "weight_category": "400-600kg",
+     "price_per_kg_local": 7.20, "local_currency": "AUD", "data_source": "MLA/NLRS"},
+    {"date": "2026-03-11", "country": "AU", "region": "Victoria",
+     "livestock_class": "Grainfed Cattle", "weight_category": "300-450kg",
+     "price_per_kg_local": 7.50, "local_currency": "AUD", "data_source": "MLA/NLRS"},
+    {"date": "2026-03-11", "country": "AU", "region": "Queensland",
+     "livestock_class": "Cows", "weight_category": "400-550kg",
+     "price_per_kg_local": 5.80, "local_currency": "AUD", "data_source": "MLA/NLRS"},
+    {"date": "2026-03-11", "country": "AU", "region": "Eastern Australia",
+     "livestock_class": "Vealer Steers", "weight_category": "200-280kg",
+     "price_per_kg_local": 8.10, "local_currency": "AUD", "data_source": "MLA/NLRS"},
+    {"date": "2026-03-11", "country": "AU", "region": "South Australia",
+     "livestock_class": "Bulls", "weight_category": ">600kg",
+     "price_per_kg_local": 5.50, "local_currency": "AUD", "data_source": "MLA/NLRS"},
+    {"date": "2026-03-11", "country": "AU", "region": "Western Australia",
+     "livestock_class": "Feeder Steers", "weight_category": "350-450kg",
+     "price_per_kg_local": 7.35, "local_currency": "AUD", "data_source": "MLA/NLRS"},
 ]
 
 def upload_to_database():
@@ -63,17 +43,17 @@ def upload_to_database():
         print("ERROR: DATABASE_URL not found")
         return
 
+    rates = get_usd_rates()
+
     try:
         conn = psycopg.connect(DATABASE_URL, sslmode='disable')
         cur = conn.cursor()
-        print("Connected to Railway PostgreSQL database")
-        print(f"Uploading {len(australia_prices)} Australian cattle price records...\n")
+        print(f"AU: Uploading {len(australia_prices)} records...")
 
         uploaded = 0
         skipped = 0
 
         for r in australia_prices:
-            # Check for existing record (dedup by country+date+class+region)
             cur.execute("""
                 SELECT id FROM cattle_prices
                 WHERE country = %s AND timestamp::date = %s::date
@@ -82,8 +62,9 @@ def upload_to_database():
 
             if cur.fetchone():
                 skipped += 1
-                print(f"SKIP (exists): {r['date']} | {r['livestock_class']} | {r['region']}")
                 continue
+
+            usd_price = to_usd(r['price_per_kg_local'], r['local_currency'], rates)
 
             cur.execute("""
                 INSERT INTO cattle_prices
@@ -94,16 +75,15 @@ def upload_to_database():
             """, (
                 r['country'], r['region'], r['livestock_class'],
                 r['weight_category'], r['price_per_kg_local'],
-                r['price_per_kg_usd'], r['local_currency'],
+                usd_price, r['local_currency'],
                 r['data_source'], r['date']
             ))
             uploaded += 1
-            print(f"Uploaded: {r['date']} | {r['livestock_class']} ({r['weight_category']}) | "
-                  f"AU$ {r['price_per_kg_local']:.2f}/kg | ${r['price_per_kg_usd']:.2f}/kg")
+            print(f"  {r['livestock_class']} ({r['weight_category']}) | "
+                  f"AU${r['price_per_kg_local']:.2f} = US${usd_price:.2f}/kg")
 
         conn.commit()
-        print(f"\nSUCCESS! Uploaded {uploaded}, skipped {skipped} duplicates")
-        print(f"Source: MLA/NLRS - Collected on March 12, 2026")
+        print(f"AU: {uploaded} uploaded, {skipped} skipped")
         cur.close()
         conn.close()
 
