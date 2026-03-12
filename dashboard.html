@@ -45,6 +45,14 @@ tr:hover td { background: #1e293b; }
 .loading { text-align: center; padding: 60px; color: #64748b; }
 .filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .filters select { padding: 8px 12px; border-radius: 6px; background: #334155; color: #e2e8f0; border: 1px solid #475569; font-size: 14px; cursor: pointer; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
+.legend-color { width: 16px; height: 16px; border-radius: 3px; }
+.percentile-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+.percentile-card { background: #0f172a; border-radius: 8px; padding: 12px; text-align: center; }
+.percentile-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+.percentile-card .pval { font-size: 20px; font-weight: 700; margin-top: 4px; }
+.current-indicator { font-size: 14px; padding: 8px 16px; border-radius: 8px; display: inline-block; margin-top: 12px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -54,6 +62,7 @@ tr:hover td { background: #1e293b; }
 </div>
 <div class="tabs">
 <div class="tab active" onclick="showTab('overview')">Overview</div>
+<div class="tab" onclick="showTab('historical')">Historical Bands</div>
 <div class="tab" onclick="showTab('cattle')">Cattle Prices</div>
 <div class="tab" onclick="showTab('crops')">Crop Prices</div>
 <div class="tab" onclick="showTab('compare')">Cross-Country</div>
@@ -64,12 +73,31 @@ tr:hover td { background: #1e293b; }
 <div class="chart-container"><h2>Cattle Price Comparison (USD/kg)</h2><canvas id="compareChart"></canvas></div>
 <div class="chart-container"><h2>Latest Prices by Country</h2><div id="latest-table"><div class="loading">Loading...</div></div></div>
 </div>
+<div id="historical" class="section">
+<div class="filters">
+<select id="hist-country" onchange="loadHistorical()">
+<option value="AU">Australia - EYCI</option>
+<option value="US">USA - Choice Steers</option>
+<option value="BR">Brazil - Boi Gordo</option>
+<option value="UY">Uruguay - Novillo Gordo</option>
+<option value="NZ">New Zealand - Prime Steer</option>
+<option value="AR">Argentina - Novillo</option>
+<option value="PY">Paraguay - Novillo</option>
+</select>
+</div>
+<div class="chart-container">
+<h2 id="hist-title">Cattle Market Analysis</h2>
+<canvas id="histChart" height="400"></canvas>
+<div class="legend" id="hist-legend"></div>
+</div>
+<div class="grid" id="hist-bands"><div class="loading">Select a country above...</div></div>
+</div>
 <div id="cattle" class="section">
 <div class="filters"><select id="cattle-country" onchange="loadCattlePrices()"><option value="">All Countries</option><option value="AU">Australia</option><option value="NZ">New Zealand</option><option value="BR">Brazil</option><option value="PY">Paraguay</option><option value="UY">Uruguay</option><option value="AR">Argentina</option><option value="US">USA</option></select></div>
 <div class="chart-container"><h2>Cattle Prices</h2><div id="cattle-table"><div class="loading">Loading...</div></div></div>
 </div>
 <div id="crops" class="section">
-<div class="filters"><select id="crop-type" onchange="loadCropPrices()"><option value="">All Crops</option><option value="Soybeans">Soybeans</option><option value="Corn">Corn</option><option value="Wheat">Wheat</option><option value="Cotton">Cotton</option><option value="Rice">Rice</option><option value="Sorghum">Sorghum</option><option value="Barley">Barley</option></select></div>
+<div class="filters"><select id="crop-type" onchange="loadCropPrices()"><option value="">All Crops</option><option value="Soybeans">Soybeans</option><option value="Corn">Corn</option><option value="Wheat">Wheat</option><option value="Cotton">Cotton</option><option value="Rice">Rice</option></select></div>
 <div class="chart-container"><h2>Crop Prices</h2><div id="crop-table"><div class="loading">Loading...</div></div></div>
 </div>
 <div id="compare" class="section">
@@ -82,7 +110,15 @@ const API = window.location.origin;
 const FLAGS = {AU:'\ud83c\udde6\ud83c\uddfa',NZ:'\ud83c\uddf3\ud83c\uddff',BR:'\ud83c\udde7\ud83c\uddf7',PY:'\ud83c\uddf5\ud83c\uddfe',UY:'\ud83c\uddfa\ud83c\uddfe',AR:'\ud83c\udde6\ud83c\uddf7',US:'\ud83c\uddfa\ud83c\uddf8'};
 const NAMES = {AU:'Australia',NZ:'New Zealand',BR:'Brazil',PY:'Paraguay',UY:'Uruguay',AR:'Argentina',US:'USA'};
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4'];
-let compareChart, crossChart, cropCompareChart;
+let compareChart, crossChart, cropCompareChart, histChart;
+const BAND_COLORS = [
+  {label:'Extremely Low (0-10th)', color:'#ef4444', bg:'rgba(239,68,68,0.3)'},
+  {label:'Well Below Avg (10-25th)', color:'#f97316', bg:'rgba(249,115,22,0.3)'},
+  {label:'Below Average (25-50th)', color:'#eab308', bg:'rgba(234,179,8,0.3)'},
+  {label:'Above Average (50-75th)', color:'#a3e635', bg:'rgba(163,230,53,0.3)'},
+  {label:'Well Above Avg (75-90th)', color:'#22c55e', bg:'rgba(34,197,94,0.3)'},
+  {label:'Extremely High (90-100th)', color:'#3b82f6', bg:'rgba(59,130,246,0.3)'}
+];
 function showTab(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -91,6 +127,7 @@ function showTab(id) {
   if (id === 'cattle') loadCattlePrices();
   if (id === 'crops') loadCropPrices();
   if (id === 'compare') loadCrossCountry();
+  if (id === 'historical') loadHistorical();
 }
 async function fetchJSON(url) { const r = await fetch(url); return r.json(); }
 function makeTable(headers, rows) {
@@ -165,6 +202,64 @@ async function loadCrossCountry() {
       scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => '$'+v }, grid: { color: '#1e293b' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } }
     }
   });
+}
+async function loadHistorical() {
+  const country = document.getElementById('hist-country').value;
+  const [prices, bands] = await Promise.all([
+    fetchJSON(API+'/api/historical-prices?country='+country),
+    fetchJSON(API+'/api/percentile-bands?country='+country)
+  ]);
+  if (!prices.length || !bands.length) { document.getElementById('hist-bands').innerHTML='<div class="loading">No data</div>'; return; }
+  const b = bands[0];
+  const years = prices.map(p => p.year);
+  const vals = prices.map(p => p.price_usd_kg);
+  document.getElementById('hist-title').textContent = (FLAGS[country]||'')+' '+(NAMES[country]||country)+' - '+b.livestock_class+' (USD/kg Liveweight)';
+  if (histChart) histChart.destroy();
+  histChart = new Chart(document.getElementById('histChart'), {
+    type: 'line',
+    data: {
+      labels: years,
+      datasets: [
+        { label: '90-100th', data: years.map(()=>b.max), fill: '+1', backgroundColor: BAND_COLORS[5].bg, borderWidth: 0, pointRadius: 0 },
+        { label: '75-90th', data: years.map(()=>b.p90), fill: '+1', backgroundColor: BAND_COLORS[4].bg, borderWidth: 0, pointRadius: 0 },
+        { label: '50-75th', data: years.map(()=>b.p75), fill: '+1', backgroundColor: BAND_COLORS[3].bg, borderWidth: 0, pointRadius: 0 },
+        { label: '25-50th', data: years.map(()=>b.p50), fill: '+1', backgroundColor: BAND_COLORS[2].bg, borderWidth: 0, pointRadius: 0 },
+        { label: '10-25th', data: years.map(()=>b.p25), fill: '+1', backgroundColor: BAND_COLORS[1].bg, borderWidth: 0, pointRadius: 0 },
+        { label: '0-10th', data: years.map(()=>b.p10), fill: '+1', backgroundColor: BAND_COLORS[0].bg, borderWidth: 0, pointRadius: 0 },
+        { label: 'Floor', data: years.map(()=>b.min), fill: false, borderWidth: 0, pointRadius: 0 },
+        { label: 'Actual Price', data: vals, fill: false, borderColor: '#f8fafc', borderWidth: 3, pointBackgroundColor: '#f8fafc', pointRadius: 4, pointHoverRadius: 6, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'Actual Price' ? '$'+ctx.parsed.y.toFixed(2)+'/kg' : '' } }
+      },
+      scales: {
+        y: { min: Math.max(0, b.min-0.2), ticks: { color: '#94a3b8', callback: v => '$'+v.toFixed(2) }, grid: { color: '#334155' } },
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+      }
+    }
+  });
+  document.getElementById('hist-legend').innerHTML = BAND_COLORS.map(b =>
+    '<div class="legend-item"><div class="legend-color" style="background:'+b.color+'"></div>'+b.label+'</div>'
+  ).join('') + '<div class="legend-item"><div class="legend-color" style="background:#f8fafc"></div>Actual Price</div>';
+  const latest = vals[vals.length-1];
+  let pctLabel, pctColor;
+  if (latest <= b.p10) { pctLabel = 'Extremely Low'; pctColor = BAND_COLORS[0].color; }
+  else if (latest <= b.p25) { pctLabel = 'Well Below Average'; pctColor = BAND_COLORS[1].color; }
+  else if (latest <= b.p50) { pctLabel = 'Below Average'; pctColor = BAND_COLORS[2].color; }
+  else if (latest <= b.p75) { pctLabel = 'Above Average'; pctColor = BAND_COLORS[3].color; }
+  else if (latest <= b.p90) { pctLabel = 'Well Above Average'; pctColor = BAND_COLORS[4].color; }
+  else { pctLabel = 'Extremely High'; pctColor = BAND_COLORS[5].color; }
+  document.getElementById('hist-bands').innerHTML =
+    '<div class="card"><h3>Current Price</h3><div class="value" style="color:'+pctColor+'">$'+latest.toFixed(2)+'</div><div class="sub">'+pctLabel+'</div></div>'+
+    '<div class="card"><h3>10th Percentile</h3><div class="value" style="color:#ef4444">$'+b.p10.toFixed(2)+'</div><div class="sub">Extremely low floor</div></div>'+
+    '<div class="card"><h3>25th Percentile</h3><div class="value" style="color:#f97316">$'+b.p25.toFixed(2)+'</div><div class="sub">Below average</div></div>'+
+    '<div class="card"><h3>Median (50th)</h3><div class="value" style="color:#eab308">$'+b.p50.toFixed(2)+'</div><div class="sub">Historical midpoint</div></div>'+
+    '<div class="card"><h3>75th Percentile</h3><div class="value" style="color:#22c55e">$'+b.p75.toFixed(2)+'</div><div class="sub">Above average</div></div>'+
+    '<div class="card"><h3>90th Percentile</h3><div class="value" style="color:#3b82f6">$'+b.p90.toFixed(2)+'</div><div class="sub">Extremely high ceiling</div></div>'+
+    '<div class="card"><h3>Historical Range</h3><div class="value">$'+b.min.toFixed(2)+' - $'+b.max.toFixed(2)+'</div><div class="sub">'+b.data_points+' data points</div></div>';
 }
 loadSummary(); loadCompareChart(); loadLatestTable();
 </script>
