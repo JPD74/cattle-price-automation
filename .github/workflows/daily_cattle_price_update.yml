@@ -77,8 +77,34 @@ jobs:
         run: |
           python upload_crops.py
 
+      # === LIVE SCRAPERS ===
+      - name: Live scrape USA (USDA LMR Datamart)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scrape_live_usa.py
+
+      - name: Live scrape Brazil (CEPEA/ESALQ)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scrape_live_brazil.py
+
+      - name: Live scrape Australia (MLA Statistics)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scrape_live_australia.py
+
+      - name: Live scrape NZ/Paraguay/Uruguay
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scrape_live_nz_py_uy.py
+
       - name: Summary
         run: |
-          echo "Cattle & crop price data collection complete!"
-          echo "Countries: AU, NZ, BR, PY, UY, AR, US"
+          echo "=== CATTLE PRICE DATA COLLECTION COMPLETE ==="
+          echo "Static uploads: AU, NZ, BR, PY, UY, AR, US + Crops"
+          echo "Live scrapers: USA (USDA), Brazil (CEPEA), Australia (MLA), NZ/PY/UY"
           echo "Database: Railway PostgreSQL"
