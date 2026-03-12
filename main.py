@@ -346,8 +346,8 @@ def historical_prices(
     """Get historical annual prices for percentile band calculations."""
     conn = get_conn()
     cur = conn.cursor()
-    cond = "WHERE data_source LIKE '%Historical%'"
-    params = []
+        cond = "WHERE data_source LIKE %s"
+        params = ["%Historical%"]
     if country:
         cond += " AND country = %s"
         params.append(country.upper())
@@ -376,8 +376,8 @@ def percentile_bands(
     """Calculate percentile bands from historical data for each country."""
     conn = get_conn()
     cur = conn.cursor()
-    cond = "WHERE data_source LIKE '%Historical%'"
-    params = []
+        cond = "WHERE data_source LIKE %s"
+        params = ["%Historical%"]
     if country:
         cond += " AND country = %s"
         params.append(country.upper())
