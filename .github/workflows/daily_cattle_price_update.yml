@@ -9,55 +9,58 @@ on:
 jobs:
   collect_cattle_prices:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
-    
-    - name: Upload Brazil CEPEA cattle prices
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python upload_brazil_cepea.py
-    
-    - name: Upload New Zealand cattle prices
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python upload_newzealand.py
-    
-    - name: Upload Australian cattle prices
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python upload_australia.py
-    
-    - name: Upload Paraguay cattle prices
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python upload_paraguay.py
-    
-    - name: Upload Uruguay cattle prices
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python upload_uruguay.py
-    
-    - name: Summary
-      run: |
-        echo "✅ Cattle price data collection completed for all 5 countries!"
-        echo "🇧🇷 Brazil - CEPEA/ESALQ"
-        echo "🇳🇿 New Zealand - interest.co.nz"
-        echo "🇦🇺 Australia - MLA/NLRS"
-        echo "🇵🇾 Paraguay - SENACSA"
-        echo "🇺🇾 Uruguay - INAC"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Cleanup old NULL records
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python cleanup_old_records.py
+
+      - name: Upload Brazil CEPEA cattle prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_brazil_cepea.py
+
+      - name: Upload New Zealand cattle prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_newzealand.py
+
+      - name: Upload Australian cattle prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_australia.py
+
+      - name: Upload Paraguay cattle prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_paraguay.py
+
+      - name: Upload Uruguay cattle prices
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python upload_uruguay.py
+
+      - name: Summary
+        run: |
+          echo "Cattle price data collection complete!"
+          echo "Countries: AU, NZ, BR, PY, UY"
+          echo "Database: Railway PostgreSQL"
