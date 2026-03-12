@@ -8,6 +8,7 @@ import os
 from datetime import datetime, date
 from typing import Optional
 from fastapi import FastAPI, Query, HTTPException
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import psycopg
 
@@ -329,3 +330,10 @@ def compare_crop_prices(
          "date": str(r[7].date()) if r[7] else None}
         for r in rows
     ]
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    """Interactive dashboard for cattle and crop price data."""
+    html = open(os.path.join(os.path.dirname(__file__), "dashboard.html")).read()
+    return HTMLResponse(content=html)
