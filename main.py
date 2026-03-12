@@ -411,7 +411,7 @@ def percentile_bands(
     ]
 
 
-    @app.get("/run-backfill")
+@app.get("/run-backfill")
 def run_backfill():
     """Trigger historical price backfill."""
     import subprocess
