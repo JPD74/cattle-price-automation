@@ -411,6 +411,46 @@ def percentile_bands(
     ]
 
 
+@app.get("/prices/benchmark")
+def benchmark_prices():
+    """Get the primary benchmark cattle price for each country."""
+    BENCHMARKS = {
+        "AU": "EYCI",
+        "NZ": "Prime Steer",
+        "BR": "Boi Gordo",
+        "PY": "Novillo",
+        "UY": "Novillo Gordo",
+        "AR": "Novillo",
+        "US": "Choice Steers",
+    }
+    conn = get_conn()
+    cur = conn.cursor()
+    results = []
+    for country, cls_keyword in BENCHMARKS.items():
+        cur.execute("""
+            SELECT country, region, livestock_class, weight_category,
+                   price_per_kg_local, price_per_kg_usd, local_currency, timestamp
+            FROM cattle_prices
+            WHERE country = %s AND livestock_class ILIKE %s
+                  AND weight_category IS NOT NULL
+            ORDER BY timestamp DESC LIMIT 1
+        """, (country, f"%{cls_keyword}%"))
+        row = cur.fetchone()
+        if row:
+            results.append({
+                "country": row[0], "region": row[1],
+                "livestock_class": row[2], "weight_category": row[3],
+                "price_per_kg_local": float(row[4]),
+                "price_per_kg_usd": float(row[5]),
+                "local_currency": row[6],
+                "date": str(row[7].date()) if row[7] else None,
+            })
+    cur.close()
+    conn.close()
+    return results
+
+
+
 @app.get("/run-backfill")
 def run_backfill():
     """Trigger historical price backfill."""
