@@ -6,7 +6,7 @@ Source: cepea.org.br/en/indicator/cattle.aspx
 """
 import os
 import re
-import psycopg2
+import psycopg
 import requests
 from datetime import datetime, date
 from bs4 import BeautifulSoup
@@ -38,10 +38,9 @@ def scrape_cepea_cattle():
     soup = BeautifulSoup(r.text, "html.parser")
     records = []
     
-    # Find the price table - look for rows with date, price, daily%, monthly%
+    # Find the price table
     table = soup.find("table", {"id": "imagenet-indicador1"})
     if not table:
-        # Fallback: find any table with price data
         tables = soup.find_all("table")
         for t in tables:
             text = t.get_text()
@@ -51,7 +50,6 @@ def scrape_cepea_cattle():
     
     if not table:
         print("Could not find CEPEA price table")
-        # Try regex approach on raw HTML
         pattern = r'(\d{2}/\d{2}/\d{4})\s*</td>\s*<td[^>]*>\s*([\d.,]+)'
         matches = re.findall(pattern, r.text)
         for date_str, price_usd in matches:
@@ -74,14 +72,10 @@ def scrape_cepea_cattle():
         if len(cells) >= 2:
             date_text = cells[0].get_text(strip=True)
             price_text = cells[1].get_text(strip=True)
-            
             try:
-                # Date format: MM/DD/YYYY
                 dt = datetime.strptime(date_text, "%m/%d/%Y")
                 price_per_arroba_usd = float(price_text.replace(",", ""))
-                # Convert from per arroba (15kg) to per kg
                 price_per_kg_usd = round(price_per_arroba_usd / 15.0, 4)
-                
                 records.append({
                     "date": dt.strftime("%Y-%m-%d"),
                     "price_per_kg_usd": price_per_kg_usd,
@@ -102,13 +96,12 @@ def upload_to_db(records):
     brl_to_usd = get_fx_rate()
     
     try:
-        conn = psycopg2.connect(db_url)
+        conn = psycopg.connect(db_url)
         cur = conn.cursor()
         uploaded = 0
         skipped = 0
         
         for r in records:
-            # Check for duplicates
             cur.execute("""
                 SELECT 1 FROM cattle_prices 
                 WHERE country = 'Brazil' AND region = 'Sao Paulo' 
@@ -120,7 +113,6 @@ def upload_to_db(records):
                 skipped += 1
                 continue
             
-            # Calculate BRL price if we have FX rate
             price_brl = None
             if brl_to_usd and brl_to_usd > 0:
                 price_brl = round(r["price_per_kg_usd"] / brl_to_usd, 4)
@@ -138,7 +130,6 @@ def upload_to_db(records):
                 "CEPEA_LIVE", r["date"]
             ))
             uploaded += 1
-            print(f"  Fed Cattle (Sao Paulo) | US${r['price_per_kg_usd']:.2f}/kg")
         
         conn.commit()
         print(f"BRAZIL LIVE: {uploaded} uploaded, {skipped} skipped")
@@ -156,7 +147,7 @@ if __name__ == "__main__":
     print(f"Scraped {len(records)} price records from CEPEA")
     if records:
         for r in records:
-            print(f"  {r['date']}: US${r['price_per_kg_usd']:.4f}/kg (arroba: US${r['price_per_arroba_usd']:.2f})")
+            print(f"  {r['date']}: US${r['price_per_kg_usd']:.4f}/kg")
         upload_to_db(records)
     else:
         print("No records scraped - CEPEA may be blocked or page structure changed")
