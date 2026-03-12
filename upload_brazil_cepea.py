@@ -3,6 +3,7 @@
 Upload Cattle Prices from ALL COUNTRIES to Railway PostgreSQL Database
 Countries: Australia, New Zealand, Brazil, Paraguay, UruguaySource: https://www.cepea.org.br/br/indicador/boi-gordo.aspx
 Data collected: March 2026 via agent-based web browsing
+"""
 import os
 import psycopg
 from datetime import datetime
