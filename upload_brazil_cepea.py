@@ -1,43 +1,69 @@
 #!/usr/bin/env python3
 """
 Upload Brazil CEPEA Cattle Prices to Railway PostgreSQL Database
-Source: CEPEA/ESALQ - https://www.cepea.org.br/br/indicador/boi-gordo.aspx
+Source: CEPEA/ESALQ + Noticias Agricolas regional market data
 """
 import os
 import psycopg
 from datetime import datetime
 from fx_rates import get_usd_rates, to_usd
 
-# Brazil cattle price data - expanded classes across regions
-# Boi Gordo from CEPEA + regional market prices
+# Brazil cattle price data - expanded regions and classes
+# Prices converted from R$/arroba (15kg) to R$/kg
+# Source: noticiasagricolas.com.br + CEPEA/ESALQ indicator
 brazil_prices = [
+    # Sao Paulo - CEPEA/ESALQ Indicator (Boi Gordo)
     {"date": "2026-03-11", "country": "BR", "region": "Sao Paulo",
      "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
-     "price_per_kg_local": 23.15, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
-    {"date": "2026-03-10", "country": "BR", "region": "Sao Paulo",
-     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
-     "price_per_kg_local": 23.12, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
-    {"date": "2026-03-09", "country": "BR", "region": "Sao Paulo",
-     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
-     "price_per_kg_local": 23.16, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
-    {"date": "2026-03-06", "country": "BR", "region": "Sao Paulo",
-     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
-     "price_per_kg_local": 23.07, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
-    {"date": "2026-03-05", "country": "BR", "region": "Sao Paulo",
-     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
-     "price_per_kg_local": 23.15, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
+     "price_per_kg_local": 22.90, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
     {"date": "2026-03-11", "country": "BR", "region": "Sao Paulo",
      "livestock_class": "Vaca Gorda (Fat Cow)", "weight_category": "350-450kg",
-     "price_per_kg_local": 20.80, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
+     "price_per_kg_local": 21.27, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Mato Grosso do Sul
     {"date": "2026-03-11", "country": "BR", "region": "Mato Grosso do Sul",
      "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
-     "price_per_kg_local": 22.40, "local_currency": "BRL", "data_source": "CEPEA/Regional"},
-    {"date": "2026-03-11", "country": "BR", "region": "Goias",
+     "price_per_kg_local": 22.11, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    {"date": "2026-03-11", "country": "BR", "region": "Mato Grosso do Sul",
+     "livestock_class": "Vaca Gorda (Fat Cow)", "weight_category": "350-450kg",
+     "price_per_kg_local": 19.80, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Mato Grosso
+    {"date": "2026-03-11", "country": "BR", "region": "Mato Grosso",
      "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
-     "price_per_kg_local": 22.10, "local_currency": "BRL", "data_source": "CEPEA/Regional"},
+     "price_per_kg_local": 21.97, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    {"date": "2026-03-11", "country": "BR", "region": "Mato Grosso",
+     "livestock_class": "Vaca Gorda (Fat Cow)", "weight_category": "350-450kg",
+     "price_per_kg_local": 20.47, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
     {"date": "2026-03-11", "country": "BR", "region": "Mato Grosso",
      "livestock_class": "Boi Magro (Lean Cattle)", "weight_category": "350-450kg",
-     "price_per_kg_local": 19.50, "local_currency": "BRL", "data_source": "CEPEA/Regional"},
+     "price_per_kg_local": 19.50, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Goias
+    {"date": "2026-03-11", "country": "BR", "region": "Goias",
+     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
+     "price_per_kg_local": 22.00, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    {"date": "2026-03-11", "country": "BR", "region": "Goias",
+     "livestock_class": "Vaca Gorda (Fat Cow)", "weight_category": "350-450kg",
+     "price_per_kg_local": 19.67, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Minas Gerais
+    {"date": "2026-03-11", "country": "BR", "region": "Minas Gerais",
+     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
+     "price_per_kg_local": 21.78, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Parana
+    {"date": "2026-03-11", "country": "BR", "region": "Parana",
+     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
+     "price_per_kg_local": 23.10, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Para (North - Amazon region)
+    {"date": "2026-03-11", "country": "BR", "region": "Para",
+     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
+     "price_per_kg_local": 21.27, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Rondonia
+    {"date": "2026-03-11", "country": "BR", "region": "Rondonia",
+     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
+     "price_per_kg_local": 20.13, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Bahia (Northeast)
+    {"date": "2026-03-11", "country": "BR", "region": "Bahia",
+     "livestock_class": "Boi Gordo (Fed Cattle)", "weight_category": ">450kg",
+     "price_per_kg_local": 20.91, "local_currency": "BRL", "data_source": "Noticias Agricolas"},
+    # Sao Paulo - Bezerro (Calf)
     {"date": "2026-03-11", "country": "BR", "region": "Sao Paulo",
      "livestock_class": "Bezerro (Calf)", "weight_category": "200-300kg",
      "price_per_kg_local": 25.30, "local_currency": "BRL", "data_source": "CEPEA/ESALQ"},
@@ -54,8 +80,8 @@ def upload_to_database():
     try:
         conn = psycopg.connect(DATABASE_URL, sslmode='disable')
         cur = conn.cursor()
-        print(f"BR: Uploading {len(brazil_prices)} records...")
 
+        print(f"BR: Uploading {len(brazil_prices)} records...")
         uploaded = 0
         skipped = 0
 
@@ -74,9 +100,9 @@ def upload_to_database():
 
             cur.execute("""
                 INSERT INTO cattle_prices
-                (country, region, livestock_class, weight_category,
-                 price_per_kg_local, price_per_kg_usd, local_currency,
-                 data_source, timestamp)
+                    (country, region, livestock_class, weight_category,
+                     price_per_kg_local, price_per_kg_usd, local_currency,
+                     data_source, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 r['country'], r['region'], r['livestock_class'],
