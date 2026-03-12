@@ -3,7 +3,7 @@
 
 import os
 import requests
-import psycopg2
+import psycopg
 from datetime import datetime
 import time
 import json
