@@ -1,1 +1,1 @@
-worker: python test_brazil_scraper.py
+worker: python upload_brazil_cepea.py
