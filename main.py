@@ -337,3 +337,83 @@ def dashboard():
     """Interactive dashboard for cattle and crop price data."""
     html = open(os.path.join(os.path.dirname(__file__), "dashboard.html")).read()
     return HTMLResponse(content=html)
+
+
+@app.get("/api/historical-prices")
+def historical_prices(
+    country: Optional[str] = Query(None, description="Filter by country code"),
+):
+    """Get historical annual prices for percentile band calculations."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE data_source LIKE '%Historical%'"
+    params = []
+    if country:
+        cond += " AND country = %s"
+        params.append(country.upper())
+    cur.execute(f"""
+        SELECT country, livestock_class, 
+               EXTRACT(YEAR FROM timestamp)::int AS year,
+               price_per_kg_usd, data_source
+        FROM cattle_prices
+        {cond}
+        ORDER BY country, year
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {"country": r[0], "livestock_class": r[1], "year": r[2],
+         "price_usd_kg": float(r[3]), "source": r[4]}
+        for r in rows
+    ]
+
+
+@app.get("/api/percentile-bands")
+def percentile_bands(
+    country: Optional[str] = Query(None, description="Filter by country code"),
+):
+    """Calculate percentile bands from historical data for each country."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE data_source LIKE '%Historical%'"
+    params = []
+    if country:
+        cond += " AND country = %s"
+        params.append(country.upper())
+    cur.execute(f"""
+        SELECT country, livestock_class,
+               PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY price_per_kg_usd) AS p10,
+               PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY price_per_kg_usd) AS p25,
+               PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY price_per_kg_usd) AS p50,
+               PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY price_per_kg_usd) AS p75,
+               PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY price_per_kg_usd) AS p90,
+               MIN(price_per_kg_usd) AS min_price,
+               MAX(price_per_kg_usd) AS max_price,
+               AVG(price_per_kg_usd) AS avg_price,
+               COUNT(*) AS data_points
+        FROM cattle_prices
+        {cond}
+        GROUP BY country, livestock_class
+        ORDER BY country
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {"country": r[0], "livestock_class": r[1],
+         "p10": round(float(r[2]), 4), "p25": round(float(r[3]), 4),
+         "p50": round(float(r[4]), 4), "p75": round(float(r[5]), 4),
+         "p90": round(float(r[6]), 4),
+         "min": round(float(r[7]), 4), "max": round(float(r[8]), 4),
+         "avg": round(float(r[9]), 4), "data_points": r[10]}
+        for r in rows
+    ]
+
+
+@app.post("/run-backfill")
+def run_backfill():
+    """Trigger historical price backfill."""
+    import subprocess
+    result = subprocess.run(["python", "backfill_historical.py"], capture_output=True, text=True)
+    return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
