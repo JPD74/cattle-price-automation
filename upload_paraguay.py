@@ -67,7 +67,7 @@ def upload_to_database():
     
     try:
         # Connect to Railway PostgreSQL database
-        conn = psycopg.connect(DATABASE_URL)
+        conn = psycopg.connect(DATABASE_URL, sslmode='disable')
         cur = conn.cursor()
         
         print("✅ Connected to Railway PostgreSQL database")
