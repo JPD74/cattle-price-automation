@@ -1,178 +1,213 @@
 #!/usr/bin/env python3
-"""Cattle Price Automation - Australia MLA Data Collector"""
-
+"""
+Cattle Price API - FastAPI service for querying cattle prices across
+Australia, New Zealand, Brazil, Paraguay and Uruguay.
+Deployed on Railway, backed by PostgreSQL.
+"""
 import os
-import requests
+from datetime import datetime, date
+from typing import Optional
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import psycopg
-from datetime import datetime
-import time
-import json
 
-# Get database connection from Railway environment
-DATABASE_URL = os.getenv('DATABASE_URL')
+app = FastAPI(
+    title="Cattle Price API",
+    description="Cross-country cattle price database covering AU, NZ, BR, PY, UY",
+    version="1.0.0",
+)
 
-print("=" * 60)
-print("🐄 Cattle Price Automation Service")
-print("=" * 60)
-print(f"Started at: {datetime.now()}")
-print(f"Database: {DATABASE_URL[:40] if DATABASE_URL else 'NOT SET'}...")
-print("=" * 60)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-def setup_database():
-    """Create tables if they don't exist"""
-    print("\n[SETUP] Setting up database tables...")
-    try:
-        conn = psycopg.connect(DATABASE_URL)
-        cur = conn.cursor()
-        
-        # Read and execute setup SQL
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS cattle_prices (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                country VARCHAR(2) NOT NULL,
-                region VARCHAR(100),
-                livestock_class VARCHAR(100) NOT NULL,
-                weight_category VARCHAR(50),
-                price_per_kg_local DECIMAL(10,2) NOT NULL,
-                price_per_kg_usd DECIMAL(10,2) NOT NULL,
-                local_currency VARCHAR(3) NOT NULL,
-                data_source VARCHAR(100) NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-            
-            CREATE TABLE IF NOT EXISTS collection_log (
-                id SERIAL PRIMARY KEY,
-                country VARCHAR(2) NOT NULL,
-                data_source VARCHAR(100) NOT NULL,
-                records_collected INTEGER DEFAULT 0,
-                status VARCHAR(20) NOT NULL,
-                error_message TEXT,
-                timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        print("✅ [SETUP] Database tables ready!")
-        return True
-    except Exception as e:
-        print(f"❌ [SETUP] Error: {e}")
-        return False
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-def get_exchange_rate(currency='AUD'):
-    """Get current USD exchange rate"""
-    try:
-        response = requests.get(f'https://api.exchangerate-api.com/v4/latest/{currency}', timeout=10)
-        data = response.json()
-        return data['rates']['USD']
-    except:
-        # Fallback rates
-        rates = {'AUD': 0.65, 'NZD': 0.60, 'BRL': 0.20, 'PYG': 0.00013, 'UYU': 0.026}
-        return rates.get(currency, 1.0)
+def get_conn():
+    return psycopg.connect(DATABASE_URL, sslmode="disable")
 
-def collect_test_data():
-    """Collect test/demo cattle price data"""
-    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🇦🇺 Starting Australia data collection...")
-    
-    try:
-        conn = psycopg.connect(DATABASE_URL)
-        cur = conn.cursor()
-        
-        # Get current exchange rate
-        aud_to_usd = get_exchange_rate('AUD')
-        print(f"   💱 Exchange rate: 1 AUD = {aud_to_usd:.4f} USD")
-        
-        # Demo data - representing typical Australian cattle prices
-        demo_prices = [
-            {'class': 'Heavy Steers', 'region': 'Queensland', 'price_aud': 4.50},
-            {'class': 'Medium Steers', 'region': 'New South Wales', 'price_aud': 4.20},
-            {'class': 'Heavy Cows', 'region': 'Victoria', 'price_aud': 3.80},
-            {'class': 'Medium Cows', 'region': 'South Australia', 'price_aud': 3.50},
-        ]
-        
-        records_count = 0
-        for price_data in demo_prices:
-            cur.execute("""
-                INSERT INTO cattle_prices 
-                (country, region, livestock_class, price_per_kg_local, 
-                 price_per_kg_usd, local_currency, data_source)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (
-                'AU',
-                price_data['region'],
-                price_data['class'],
-                price_data['price_aud'],
-                price_data['price_aud'] * aud_to_usd,
-                'AUD',
-                'Demo Data'
-            ))
-            records_count += 1
-        
-        # Log successful collection
-        cur.execute("""
-            INSERT INTO collection_log 
-            (country, data_source, records_collected, status)
-            VALUES (%s, %s, %s, %s)
-        """, ('AU', 'Demo Data', records_count, 'success'))
-        
-        conn.commit()
-        print(f"   ✅ Successfully collected {records_count} price records")
-        
-        cur.close()
-        conn.close()
-        return True
-        
-    except Exception as e:
-        print(f"   ❌ Error: {e}")
-        try:
-            cur.execute("""
-                INSERT INTO collection_log 
-                (country, data_source, status, error_message)
-                VALUES (%s, %s, %s, %s)
-            """, ('AU', 'Demo Data', 'failed', str(e)))
-            conn.commit()
-        except:
-            pass
-        return False
 
-def main():
-    """Main automation loop"""
-    
-    # Setup database first
-    if not setup_database():
-        print("❌ Failed to setup database. Exiting.")
-        return
-    
-    print("\n🚀 Starting automated data collection loop...")
-    print("   Collection runs every 5 minutes")
-    print("   Press Ctrl+C to stop\n")
-    
-    iteration = 0
-    while True:
-        try:
-            iteration += 1
-            print(f"\n{'='*60}")
-            print(f"Iteration #{iteration} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"{'='*60}")
-            
-            # Collect data
-            collect_test_data()
-            
-            # Wait 5 minutes (300 seconds)
-            print(f"\n⏰ Waiting 5 minutes until next collection...")
-            print(f"   Next run at: {datetime.fromtimestamp(time.time() + 300).strftime('%H:%M:%S')}")
-            time.sleep(300)
-            
-        except KeyboardInterrupt:
-            print("\n\n🛑 Service stopped by user")
-            print("="*60)
-            break
-        except Exception as e:
-            print(f"\n❌ Unexpected error: {e}")
-            print("   Waiting 1 minute before retry...")
-            time.sleep(60)
+@app.get("/")
+def root():
+    return {
+        "service": "Cattle Price API",
+        "version": "1.0.0",
+        "endpoints": [
+            "/prices",
+            "/prices/latest",
+            "/prices/compare",
+            "/countries",
+            "/summary",
+        ],
+    }
 
-if __name__ == "__main__":
-    main()
+
+@app.get("/countries")
+def list_countries():
+    """List all countries and their available regions/classes."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT country, 
+               array_agg(DISTINCT region) AS regions,
+               array_agg(DISTINCT livestock_class) AS classes,
+               COUNT(*) AS total_records
+        FROM cattle_prices
+        WHERE weight_category IS NOT NULL
+        GROUP BY country ORDER BY country
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {"country": r[0], "regions": r[1], "livestock_classes": r[2], "total_records": r[3]}
+        for r in rows
+    ]
+
+
+@app.get("/prices")
+def get_prices(
+    country: Optional[str] = Query(None, description="Filter by country code (AU, NZ, BR, PY, UY)"),
+    region: Optional[str] = Query(None, description="Filter by region"),
+    livestock_class: Optional[str] = Query(None, description="Filter by livestock class"),
+    date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(100, ge=1, le=500),
+):
+    """Query cattle prices with optional filters."""
+    conn = get_conn()
+    cur = conn.cursor()
+    conditions = ["weight_category IS NOT NULL"]
+    params = []
+    if country:
+        conditions.append("country = %s")
+        params.append(country.upper())
+    if region:
+        conditions.append("region ILIKE %s")
+        params.append(f"%{region}%")
+    if livestock_class:
+        conditions.append("livestock_class ILIKE %s")
+        params.append(f"%{livestock_class}%")
+    if date_from:
+        conditions.append("timestamp::date >= %s::date")
+        params.append(date_from)
+    if date_to:
+        conditions.append("timestamp::date <= %s::date")
+        params.append(date_to)
+    where = " AND ".join(conditions)
+    params.append(limit)
+    cur.execute(f"""
+        SELECT id, timestamp, country, region, livestock_class, weight_category,
+               price_per_kg_local, price_per_kg_usd, local_currency, data_source
+        FROM cattle_prices
+        WHERE {where}
+        ORDER BY timestamp DESC, country, region
+        LIMIT %s
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {
+            "id": r[0], "date": str(r[1].date()) if r[1] else None,
+            "country": r[2], "region": r[3],
+            "livestock_class": r[4], "weight_category": r[5],
+            "price_per_kg_local": float(r[6]), "price_per_kg_usd": float(r[7]),
+            "local_currency": r[8], "data_source": r[9],
+        }
+        for r in rows
+    ]
+
+
+@app.get("/prices/latest")
+def get_latest_prices(
+    country: Optional[str] = Query(None, description="Filter by country code"),
+):
+    """Get the most recent price for each country/class combination."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE weight_category IS NOT NULL"
+    params = []
+    if country:
+        cond += " AND country = %s"
+        params.append(country.upper())
+    cur.execute(f"""
+        SELECT DISTINCT ON (country, region, livestock_class)
+            id, timestamp, country, region, livestock_class, weight_category,
+            price_per_kg_local, price_per_kg_usd, local_currency, data_source
+        FROM cattle_prices
+        {cond}
+        ORDER BY country, region, livestock_class, timestamp DESC
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {
+            "id": r[0], "date": str(r[1].date()) if r[1] else None,
+            "country": r[2], "region": r[3],
+            "livestock_class": r[4], "weight_category": r[5],
+            "price_per_kg_local": float(r[6]), "price_per_kg_usd": float(r[7]),
+            "local_currency": r[8], "data_source": r[9],
+        }
+        for r in rows
+    ]
+
+
+@app.get("/prices/compare")
+def compare_countries(
+    livestock_class: str = Query("Fed Cattle", description="Livestock class keyword to compare"),
+):
+    """Compare latest prices across countries for a given livestock class."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT DISTINCT ON (country)
+            country, region, livestock_class, weight_category,
+            price_per_kg_local, price_per_kg_usd, local_currency,
+            timestamp
+        FROM cattle_prices
+        WHERE livestock_class ILIKE %s AND weight_category IS NOT NULL
+        ORDER BY country, timestamp DESC
+    """, (f"%{livestock_class}%",))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {
+            "country": r[0], "region": r[1],
+            "livestock_class": r[2], "weight_category": r[3],
+            "price_per_kg_local": float(r[4]), "price_per_kg_usd": float(r[5]),
+            "local_currency": r[6], "date": str(r[7].date()) if r[7] else None,
+        }
+        for r in rows
+    ]
+
+
+@app.get("/summary")
+def summary():
+    """Database summary stats."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            COUNT(*) AS total_records,
+            COUNT(DISTINCT country) AS countries,
+            COUNT(DISTINCT region) AS regions,
+            COUNT(DISTINCT livestock_class) AS classes,
+            MIN(timestamp)::date AS earliest_date,
+            MAX(timestamp)::date AS latest_date
+        FROM cattle_prices
+        WHERE weight_category IS NOT NULL
+    """)
+    r = cur.fetchone()
+    cur.close()
+    conn.close()
+    return {
+        "total_records": r[0], "countries": r[1],
+        "regions": r[2], "livestock_classes": r[3],
+        "date_range": {"from": str(r[4]), "to": str(r[5])},
+    }
