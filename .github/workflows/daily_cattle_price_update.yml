@@ -79,6 +79,6 @@ jobs:
 
       - name: Summary
         run: |
-                    echo "Cattle & crop price data collection complete!"
-                    echo "Countries: AU, NZ, BR, PY, UY, AR, US"
+          echo "Cattle & crop price data collection complete!"
+          echo "Countries: AU, NZ, BR, PY, UY, AR, US"
           echo "Database: Railway PostgreSQL"
