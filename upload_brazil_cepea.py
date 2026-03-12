@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """
-Upload Real Brazil CEPEA Cattle Prices to Railway PostgreSQL Database
-
-This script uploads the cattle price data collected from CEPEA on March 12, 2026
-Source: https://www.cepea.org.br/br/indicador/boi-gordo.aspx
-"""
-
+Upload Cattle Prices from ALL COUNTRIES to Railway PostgreSQL Database
+Countries: Australia, New Zealand, Brazil, Paraguay, UruguaySource: https://www.cepea.org.br/br/indicador/boi-gordo.aspx
+Data collected: March 2026 via agent-based web browsing
 import os
 import psycopg
 from datetime import datetime
