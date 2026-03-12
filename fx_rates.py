@@ -8,7 +8,7 @@ import requests
 
 # Fallback rates if API is unavailable
 FALLBACK_RATES = {
-    "AUD": 1.54, "NZD": 1.67, "BRL": 5.15,
+    "AUD": 1.54, "NZD": 1.67, "BRL": 5.15, "ARS": 1070.0,
     "PYG": 7250.0, "UYU": 39.90, "USD": 1.0
 }
 
@@ -20,7 +20,7 @@ def get_usd_rates():
         if data.get("result") == "success":
             rates = data["rates"]
             print(f"FX rates fetched (updated: {data.get('time_last_update_utc', 'N/A')})")
-            print(f"  AUD={rates.get('AUD')}, NZD={rates.get('NZD')}, BRL={rates.get('BRL')}, PYG={rates.get('PYG')}, UYU={rates.get('UYU')}")
+            print(f"  AUD={rates.get('AUD')}, NZD={rates.get('NZD')}, BRL={rates.get('BRL')}, PYG={rates.get('PYG')}, UYU={rates.get('UYU')}, ARS={rates.get('ARS')}")
             return rates
     except Exception as e:
         print(f"FX API error: {e}")
