@@ -29,7 +29,6 @@ th:first-child { border-radius: 8px 0 0 0; }
 th:last-child { border-radius: 0 8px 0 0; }
 td { padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 14px; }
 tr:hover td { background: #1e293b; }
-.flag { margin-right: 6px; }
 .price-usd { color: #4ade80; font-weight: 600; }
 .price-local { color: #94a3b8; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
@@ -48,11 +47,7 @@ tr:hover td { background: #1e293b; }
 .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
 .legend-color { width: 16px; height: 16px; border-radius: 3px; }
-.percentile-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
-.percentile-card { background: #0f172a; border-radius: 8px; padding: 12px; text-align: center; }
-.percentile-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; }
-.percentile-card .pval { font-size: 20px; font-weight: 700; margin-top: 4px; }
-.current-indicator { font-size: 14px; padding: 8px 16px; border-radius: 8px; display: inline-block; margin-top: 12px; font-weight: 600; }
+.hist-wrap { position: relative; height: 400px; }
 </style>
 </head>
 <body>
@@ -69,7 +64,7 @@ tr:hover td { background: #1e293b; }
 </div>
 <div class="content">
 <div id="overview" class="section active">
-<div class="grid" id="summary-cards"><div class="loading">Loading summary...</div></div>
+<div class="grid" id="summary-cards"><div class="loading">Loading...</div></div>
 <div class="chart-container"><h2>Cattle Price Comparison (USD/kg)</h2><canvas id="compareChart"></canvas></div>
 <div class="chart-container"><h2>Latest Prices by Country</h2><div id="latest-table"><div class="loading">Loading...</div></div></div>
 </div>
@@ -86,22 +81,22 @@ tr:hover td { background: #1e293b; }
 </select>
 </div>
 <div class="chart-container">
-<h2 id="hist-title">Cattle Market Analysis</h2>
-<canvas id="histChart" height="400"></canvas>
+<h2 id="hist-title">Historical Price Analysis</h2>
+<div class="hist-wrap"><canvas id="histChart"></canvas></div>
 <div class="legend" id="hist-legend"></div>
 </div>
-<div class="grid" id="hist-bands"><div class="loading">Select a country above...</div></div>
+<div class="grid" id="hist-bands"><div class="loading">Select a country...</div></div>
 </div>
 <div id="cattle" class="section">
 <div class="filters"><select id="cattle-country" onchange="loadCattlePrices()"><option value="">All Countries</option><option value="AU">Australia</option><option value="NZ">New Zealand</option><option value="BR">Brazil</option><option value="PY">Paraguay</option><option value="UY">Uruguay</option><option value="AR">Argentina</option><option value="US">USA</option></select></div>
 <div class="chart-container"><h2>Cattle Prices</h2><div id="cattle-table"><div class="loading">Loading...</div></div></div>
 </div>
 <div id="crops" class="section">
-<div class="filters"><select id="crop-type" onchange="loadCropPrices()"><option value="">All Crops</option><option value="Soybeans">Soybeans</option><option value="Corn">Corn</option><option value="Wheat">Wheat</option><option value="Cotton">Cotton</option><option value="Rice">Rice</option></select></div>
+<div class="filters"><select id="crop-type" onchange="loadCropPrices()"><option value="">All Crops</option><option value="Soybeans">Soybeans</option><option value="Corn">Corn</option><option value="Wheat">Wheat</option></select></div>
 <div class="chart-container"><h2>Crop Prices</h2><div id="crop-table"><div class="loading">Loading...</div></div></div>
 </div>
 <div id="compare" class="section">
-<div class="chart-container"><h2>Fed Cattle - Cross Country Comparison</h2><canvas id="crossChart"></canvas></div>
+<div class="chart-container"><h2>Fed Cattle Comparison</h2><canvas id="crossChart"></canvas></div>
 <div class="chart-container"><h2>Crop Price Comparison</h2><canvas id="cropCompareChart"></canvas></div>
 </div>
 </div>
@@ -111,13 +106,13 @@ const FLAGS = {AU:'\ud83c\udde6\ud83c\uddfa',NZ:'\ud83c\uddf3\ud83c\uddff',BR:'\
 const NAMES = {AU:'Australia',NZ:'New Zealand',BR:'Brazil',PY:'Paraguay',UY:'Uruguay',AR:'Argentina',US:'USA'};
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4'];
 let compareChart, crossChart, cropCompareChart, histChart;
-const BAND_COLORS = [
-  {label:'Extremely Low (0-10th)', color:'#ef4444', bg:'rgba(239,68,68,0.3)'},
-  {label:'Well Below Avg (10-25th)', color:'#f97316', bg:'rgba(249,115,22,0.3)'},
-  {label:'Below Average (25-50th)', color:'#eab308', bg:'rgba(234,179,8,0.3)'},
-  {label:'Above Average (50-75th)', color:'#a3e635', bg:'rgba(163,230,53,0.3)'},
-  {label:'Well Above Avg (75-90th)', color:'#22c55e', bg:'rgba(34,197,94,0.3)'},
-  {label:'Extremely High (90-100th)', color:'#3b82f6', bg:'rgba(59,130,246,0.3)'}
+const BANDS = [
+  {label:'Extremely High (90-100th)', color:'#3b82f6', bg:'rgba(59,130,246,0.4)'},
+  {label:'Well Above Avg (75-90th)', color:'#22c55e', bg:'rgba(34,197,94,0.4)'},
+  {label:'Above Average (50-75th)', color:'#a3e635', bg:'rgba(163,230,53,0.35)'},
+  {label:'Below Average (25-50th)', color:'#eab308', bg:'rgba(234,179,8,0.35)'},
+  {label:'Well Below Avg (10-25th)', color:'#f97316', bg:'rgba(249,115,22,0.4)'},
+  {label:'Extremely Low (0-10th)', color:'#ef4444', bg:'rgba(239,68,68,0.4)'}
 ];
 function showTab(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -130,8 +125,8 @@ function showTab(id) {
   if (id === 'historical') loadHistorical();
 }
 async function fetchJSON(url) { const r = await fetch(url); return r.json(); }
-function makeTable(headers, rows) {
-  let h = '<table><thead><tr>' + headers.map(x => '<th>'+x+'</th>').join('') + '</tr></thead><tbody>';
+function makeTable(hd, rows) {
+  let h = '<table><thead><tr>' + hd.map(x => '<th>'+x+'</th>').join('') + '</tr></thead><tbody>';
   h += rows.map(r => '<tr>' + r.map(c => '<td>'+c+'</td>').join('') + '</tr>').join('');
   return h + '</tbody></table>';
 }
@@ -139,7 +134,7 @@ function badge(c) { return '<span class="badge badge-'+c.toLowerCase()+'">'+(FLA
 async function loadSummary() {
   const d = await fetchJSON(API+'/summary');
   document.getElementById('summary-cards').innerHTML =
-    '<div class="card"><h3>Cattle Records</h3><div class="value">'+d.cattle_records+'</div><div class="sub">'+d.countries+' countries, '+d.regions+' regions</div></div>'+
+    '<div class="card"><h3>Cattle Records</h3><div class="value">'+d.cattle_records+'</div><div class="sub">'+d.countries+' countries</div></div>'+
     '<div class="card"><h3>Livestock Classes</h3><div class="value">'+d.livestock_classes+'</div><div class="sub">Across all countries</div></div>'+
     '<div class="card"><h3>Date Range</h3><div class="value">'+d.date_range.from+'</div><div class="sub">to '+d.date_range.to+'</div></div>'+
     '<div class="card"><h3>Crop Records</h3><div class="value">'+d.crop_records+'</div><div class="sub">'+d.crop_types+' crop types</div></div>';
@@ -148,59 +143,44 @@ async function loadCompareChart() {
   const data = await fetchJSON(API+'/prices/compare?livestock_class=Fed Cattle');
   if (compareChart) compareChart.destroy();
   compareChart = new Chart(document.getElementById('compareChart'), {
-    type: 'bar',
-    data: { labels: data.map(d => (FLAGS[d.country]||'')+' '+NAMES[d.country]),
-      datasets: [{ label: 'USD/kg', data: data.map(d => d.price_per_kg_usd), backgroundColor: COLORS.slice(0, data.length), borderRadius: 6 }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => '$'+v }, grid: { color: '#1e293b' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } }
-    }
+    type: 'bar', data: { labels: data.map(d=>(FLAGS[d.country]||'')+' '+NAMES[d.country]), datasets: [{label:'USD/kg',data:data.map(d=>d.price_per_kg_usd),backgroundColor:COLORS.slice(0,data.length),borderRadius:6}] },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}}, x:{ticks:{color:'#94a3b8'},grid:{display:false}} } }
   });
 }
 async function loadLatestTable() {
   const data = await fetchJSON(API+'/prices/latest');
-  const rows = data.map(d => [badge(d.country), d.region, d.livestock_class, d.weight_category, '<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>', '<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>', d.date]);
-  document.getElementById('latest-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'], rows);
+  const rows = data.map(d => [badge(d.country),d.region,d.livestock_class,d.weight_category,'<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>','<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>',d.date]);
+  document.getElementById('latest-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'],rows);
 }
 async function loadCattlePrices() {
   const c = document.getElementById('cattle-country').value;
-  const data = await fetchJSON(API+'/prices?limit=200'+(c ? '&country='+c : ''));
-  const rows = data.map(d => [badge(d.country), d.region, d.livestock_class, d.weight_category, '<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>', '<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>', d.date]);
-  document.getElementById('cattle-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'], rows);
+  const data = await fetchJSON(API+'/prices?limit=200'+(c?'&country='+c:''));
+  const rows = data.map(d => [badge(d.country),d.region,d.livestock_class,d.weight_category,'<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>','<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>',d.date]);
+  document.getElementById('cattle-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'],rows);
 }
 async function loadCropPrices() {
   const crop = document.getElementById('crop-type').value;
-  const data = await fetchJSON(API+'/crops?limit=200'+(crop ? '&crop_type='+crop : ''));
-  const rows = data.map(d => [badge(d.country), d.region||'-', d.crop_type, '<span class="price-usd">$'+d.price_per_tonne_usd.toFixed(2)+'</span>', '<span class="price-local">'+d.price_per_tonne_local.toFixed(2)+' '+d.local_currency+'</span>', d.delivery_period||'-', d.date]);
-  document.getElementById('crop-table').innerHTML = makeTable(['Country','Region','Crop','USD/t','Local/t','Delivery','Date'], rows);
+  const data = await fetchJSON(API+'/crops?limit=200'+(crop?'&crop_type='+crop:''));
+  const rows = data.map(d => [badge(d.country),d.region||'-',d.crop_type,'<span class="price-usd">$'+d.price_per_tonne_usd.toFixed(2)+'</span>','<span class="price-local">'+d.price_per_tonne_local.toFixed(2)+' '+d.local_currency+'</span>',d.delivery_period||'-',d.date]);
+  document.getElementById('crop-table').innerHTML = makeTable(['Country','Region','Crop','USD/t','Local/t','Delivery','Date'],rows);
 }
 async function loadCrossCountry() {
   const cattle = await fetchJSON(API+'/prices/compare?livestock_class=Fed Cattle');
   if (crossChart) crossChart.destroy();
   crossChart = new Chart(document.getElementById('crossChart'), {
-    type: 'bar',
-    data: { labels: cattle.map(d => (FLAGS[d.country]||'')+' '+NAMES[d.country]),
-      datasets: [{ label: 'USD/kg', data: cattle.map(d => d.price_per_kg_usd), backgroundColor: COLORS, borderRadius: 6 }]
-    },
-    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } },
-      scales: { x: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => '$'+v }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#e2e8f0' }, grid: { display: false } } }
-    }
+    type:'bar', data:{labels:cattle.map(d=>(FLAGS[d.country]||'')+' '+NAMES[d.country]),datasets:[{label:'USD/kg',data:cattle.map(d=>d.price_per_kg_usd),backgroundColor:COLORS,borderRadius:6}]},
+    options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}},y:{ticks:{color:'#e2e8f0'},grid:{display:false}}}}
   });
   const soy = await fetchJSON(API+'/crops/compare?crop_type=Soybeans');
   const corn = await fetchJSON(API+'/crops/compare?crop_type=Corn');
   if (cropCompareChart) cropCompareChart.destroy();
   const ac = [...new Set([...soy.map(d=>d.country),...corn.map(d=>d.country)])];
   cropCompareChart = new Chart(document.getElementById('cropCompareChart'), {
-    type: 'bar',
-    data: { labels: ac.map(c => (FLAGS[c]||'')+' '+NAMES[c]),
-      datasets: [
-        { label: 'Soybeans (USD/t)', data: ac.map(c => { const f=soy.find(d=>d.country===c); return f?f.price_per_tonne_usd:0; }), backgroundColor: '#10b981', borderRadius: 6 },
-        { label: 'Corn (USD/t)', data: ac.map(c => { const f=corn.find(d=>d.country===c); return f?f.price_per_tonne_usd:0; }), backgroundColor: '#f59e0b', borderRadius: 6 }
-      ]
-    },
-    options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } },
-      scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => '$'+v }, grid: { color: '#1e293b' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } }
-    }
+    type:'bar', data:{labels:ac.map(c=>(FLAGS[c]||'')+' '+NAMES[c]),datasets:[
+      {label:'Soybeans (USD/t)',data:ac.map(c=>{const f=soy.find(d=>d.country===c);return f?f.price_per_tonne_usd:0;}),backgroundColor:'#10b981',borderRadius:6},
+      {label:'Corn (USD/t)',data:ac.map(c=>{const f=corn.find(d=>d.country===c);return f?f.price_per_tonne_usd:0;}),backgroundColor:'#f59e0b',borderRadius:6}
+    ]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{y:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
   });
 }
 async function loadHistorical() {
@@ -209,57 +189,53 @@ async function loadHistorical() {
     fetchJSON(API+'/api/historical-prices?country='+country),
     fetchJSON(API+'/api/percentile-bands?country='+country)
   ]);
-  if (!prices.length || !bands.length) { document.getElementById('hist-bands').innerHTML='<div class="loading">No data</div>'; return; }
+  if (!prices.length || !bands.length) return;
   const b = bands[0];
   const years = prices.map(p => p.year);
   const vals = prices.map(p => p.price_usd_kg);
-  document.getElementById('hist-title').textContent = (FLAGS[country]||'')+' '+(NAMES[country]||country)+' - '+b.livestock_class+' (USD/kg Liveweight)';
+  const latest = vals[vals.length-1];
+  document.getElementById('hist-title').textContent = (FLAGS[country]||'')+' '+(NAMES[country]||country)+' - '+b.livestock_class+' (USD/kg)';
   if (histChart) histChart.destroy();
   histChart = new Chart(document.getElementById('histChart'), {
     type: 'line',
     data: {
       labels: years,
       datasets: [
-        { label: '90-100th', data: years.map(()=>b.max), fill: '+1', backgroundColor: BAND_COLORS[5].bg, borderWidth: 0, pointRadius: 0 },
-        { label: '75-90th', data: years.map(()=>b.p90), fill: '+1', backgroundColor: BAND_COLORS[4].bg, borderWidth: 0, pointRadius: 0 },
-        { label: '50-75th', data: years.map(()=>b.p75), fill: '+1', backgroundColor: BAND_COLORS[3].bg, borderWidth: 0, pointRadius: 0 },
-        { label: '25-50th', data: years.map(()=>b.p50), fill: '+1', backgroundColor: BAND_COLORS[2].bg, borderWidth: 0, pointRadius: 0 },
-        { label: '10-25th', data: years.map(()=>b.p25), fill: '+1', backgroundColor: BAND_COLORS[1].bg, borderWidth: 0, pointRadius: 0 },
-        { label: '0-10th', data: years.map(()=>b.p10), fill: '+1', backgroundColor: BAND_COLORS[0].bg, borderWidth: 0, pointRadius: 0 },
-        { label: 'Floor', data: years.map(()=>b.min), fill: false, borderWidth: 0, pointRadius: 0 },
-        { label: 'Actual Price', data: vals, fill: false, borderColor: '#f8fafc', borderWidth: 3, pointBackgroundColor: '#f8fafc', pointRadius: 4, pointHoverRadius: 6, tension: 0.3 }
+        {label:'Max',data:years.map(()=>b.max),fill:{target:1,above:BANDS[0].bg},borderWidth:0,pointRadius:0,order:6},
+        {label:'P90',data:years.map(()=>b.p90),fill:{target:2,above:BANDS[1].bg},borderWidth:0,pointRadius:0,order:5},
+        {label:'P75',data:years.map(()=>b.p75),fill:{target:3,above:BANDS[2].bg},borderWidth:0,pointRadius:0,order:4},
+        {label:'P50',data:years.map(()=>b.p50),fill:{target:4,above:BANDS[3].bg},borderWidth:0,pointRadius:0,order:3},
+        {label:'P25',data:years.map(()=>b.p25),fill:{target:5,above:BANDS[4].bg},borderWidth:0,pointRadius:0,order:2},
+        {label:'P10',data:years.map(()=>b.p10),fill:{target:6,above:BANDS[5].bg},borderWidth:0,pointRadius:0,order:1},
+        {label:'Min',data:years.map(()=>b.min),fill:false,borderWidth:0,pointRadius:0,order:0},
+        {label:'Actual Price',data:vals,fill:false,borderColor:'#ffffff',borderWidth:3,pointBackgroundColor:'#ffffff',pointRadius:4,pointHoverRadius:7,tension:0.3,order:7}
       ]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'Actual Price' ? '$'+ctx.parsed.y.toFixed(2)+'/kg' : '' } }
-      },
-      scales: {
-        y: { min: Math.max(0, b.min-0.2), ticks: { color: '#94a3b8', callback: v => '$'+v.toFixed(2) }, grid: { color: '#334155' } },
-        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{filter:item=>item.dataset.label==='Actual Price',callbacks:{label:ctx=>'$'+ctx.parsed.y.toFixed(2)+'/kg'}}},
+      scales:{
+        y:{min:Math.max(0,b.min*0.8),max:b.max*1.1,ticks:{color:'#94a3b8',callback:v=>'$'+v.toFixed(2)},grid:{color:'#334155'}},
+        x:{ticks:{color:'#94a3b8'},grid:{color:'#1e293b'}}
       }
     }
   });
-  document.getElementById('hist-legend').innerHTML = BAND_COLORS.map(b =>
-    '<div class="legend-item"><div class="legend-color" style="background:'+b.color+'"></div>'+b.label+'</div>'
-  ).join('') + '<div class="legend-item"><div class="legend-color" style="background:#f8fafc"></div>Actual Price</div>';
-  const latest = vals[vals.length-1];
-  let pctLabel, pctColor;
-  if (latest <= b.p10) { pctLabel = 'Extremely Low'; pctColor = BAND_COLORS[0].color; }
-  else if (latest <= b.p25) { pctLabel = 'Well Below Average'; pctColor = BAND_COLORS[1].color; }
-  else if (latest <= b.p50) { pctLabel = 'Below Average'; pctColor = BAND_COLORS[2].color; }
-  else if (latest <= b.p75) { pctLabel = 'Above Average'; pctColor = BAND_COLORS[3].color; }
-  else if (latest <= b.p90) { pctLabel = 'Well Above Average'; pctColor = BAND_COLORS[4].color; }
-  else { pctLabel = 'Extremely High'; pctColor = BAND_COLORS[5].color; }
+  document.getElementById('hist-legend').innerHTML = BANDS.map(b=>'<div class="legend-item"><div class="legend-color" style="background:'+b.color+'"></div>'+b.label+'</div>').join('')+'<div class="legend-item"><div class="legend-color" style="background:#fff"></div>Actual Price</div>';
+  let pctLabel,pctColor;
+  if(latest>=b.p90){pctLabel='Extremely High';pctColor=BANDS[0].color;}
+  else if(latest>=b.p75){pctLabel='Well Above Average';pctColor=BANDS[1].color;}
+  else if(latest>=b.p50){pctLabel='Above Average';pctColor=BANDS[2].color;}
+  else if(latest>=b.p25){pctLabel='Below Average';pctColor=BANDS[3].color;}
+  else if(latest>=b.p10){pctLabel='Well Below Average';pctColor=BANDS[4].color;}
+  else{pctLabel='Extremely Low';pctColor=BANDS[5].color;}
   document.getElementById('hist-bands').innerHTML =
-    '<div class="card"><h3>Current Price</h3><div class="value" style="color:'+pctColor+'">$'+latest.toFixed(2)+'</div><div class="sub">'+pctLabel+'</div></div>'+
-    '<div class="card"><h3>10th Percentile</h3><div class="value" style="color:#ef4444">$'+b.p10.toFixed(2)+'</div><div class="sub">Extremely low floor</div></div>'+
+    '<div class="card"><h3>Latest Price ('+years[years.length-1]+')</h3><div class="value" style="color:'+pctColor+'">$'+latest.toFixed(2)+'</div><div class="sub">'+pctLabel+'</div></div>'+
+    '<div class="card"><h3>10th Percentile</h3><div class="value" style="color:#ef4444">$'+b.p10.toFixed(2)+'</div><div class="sub">Floor</div></div>'+
     '<div class="card"><h3>25th Percentile</h3><div class="value" style="color:#f97316">$'+b.p25.toFixed(2)+'</div><div class="sub">Below average</div></div>'+
-    '<div class="card"><h3>Median (50th)</h3><div class="value" style="color:#eab308">$'+b.p50.toFixed(2)+'</div><div class="sub">Historical midpoint</div></div>'+
+    '<div class="card"><h3>Median (50th)</h3><div class="value" style="color:#eab308">$'+b.p50.toFixed(2)+'</div><div class="sub">Midpoint</div></div>'+
     '<div class="card"><h3>75th Percentile</h3><div class="value" style="color:#22c55e">$'+b.p75.toFixed(2)+'</div><div class="sub">Above average</div></div>'+
-    '<div class="card"><h3>90th Percentile</h3><div class="value" style="color:#3b82f6">$'+b.p90.toFixed(2)+'</div><div class="sub">Extremely high ceiling</div></div>'+
-    '<div class="card"><h3>Historical Range</h3><div class="value">$'+b.min.toFixed(2)+' - $'+b.max.toFixed(2)+'</div><div class="sub">'+b.data_points+' data points</div></div>';
+    '<div class="card"><h3>90th Percentile</h3><div class="value" style="color:#3b82f6">$'+b.p90.toFixed(2)+'</div><div class="sub">Ceiling</div></div>'+
+    '<div class="card"><h3>Range</h3><div class="value">$'+b.min.toFixed(2)+' - $'+b.max.toFixed(2)+'</div><div class="sub">'+b.data_points+' years</div></div>';
 }
 loadSummary(); loadCompareChart(); loadLatestTable();
 </script>
