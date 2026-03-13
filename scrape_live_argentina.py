@@ -38,15 +38,15 @@ def scrape_mag_homepage():
     print("=== Argentina Live Cattle Price Scraper ===")
     today = date.today()
     print(f"Date: {today}")
-    
+
     fx = get_fx_rate()
     if not fx:
         print("ERROR: Could not get FX rate. Aborting.")
         return []
-    
+
     url = "https://www.mercadoagroganadero.com.ar/dll/inicio.dll"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    
+
     try:
         r = requests.get(url, headers=headers, timeout=60)
         r.encoding = "utf-8"
@@ -54,22 +54,22 @@ def scrape_mag_homepage():
     except Exception as e:
         print(f"Error fetching MAG homepage: {e}")
         return []
-    
+
     prices = []
     tables = soup.find_all("table")
     print(f"Found {len(tables)} tables on homepage")
-    
+
     for table in tables:
         rows = table.find_all("tr")
         for row in rows:
             cells = row.find_all("td")
             if len(cells) < 3:
                 continue
-            
+
             cat_text = cells[0].get_text(strip=True).upper()
             if not cat_text:
                 continue
-            
+
             try:
                 min_text = cells[1].get_text(strip=True).replace(".", "").replace(",", ".")
                 max_text = cells[2].get_text(strip=True).replace(".", "").replace(",", ".")
@@ -78,31 +78,31 @@ def scrape_mag_homepage():
                 avg_price = (min_price + max_price) / 2.0
             except (ValueError, IndexError):
                 continue
-            
+
             if avg_price <= 0:
                 continue
-            
+
             matched_key = None
             for key in CATEGORY_MAP:
                 if cat_text.startswith(key):
                     matched_key = key
                     break
-            
+
             if not matched_key:
                 continue
-            
+
             eng_name, weight_cat = CATEGORY_MAP[matched_key]
             sub_cat = cat_text.replace(matched_key, "").strip()
             if sub_cat:
                 full_name = f"{eng_name} ({sub_cat})"
             else:
                 full_name = eng_name
-            
+
             price_usd = round(avg_price * fx, 4)
-            
+
             prices.append({
                 "timestamp": today.isoformat(),
-                "country": "Argentina",
+                "country": "AR",
                 "region": "Buenos Aires",
                 "livestock_class": full_name,
                 "weight_category": weight_cat,
@@ -111,7 +111,7 @@ def scrape_mag_homepage():
                 "local_currency": "ARS",
                 "data_source": "MAG_LIVE",
             })
-    
+
     if not prices:
         print("No table data found, trying regex fallback...")
         html = r.text
@@ -130,7 +130,7 @@ def scrape_mag_homepage():
                     price_usd = round(avg * fx, 4)
                     prices.append({
                         "timestamp": today.isoformat(),
-                        "country": "Argentina",
+                        "country": "AR",
                         "region": "Buenos Aires",
                         "livestock_class": eng_name,
                         "weight_category": weight_cat,
@@ -141,7 +141,7 @@ def scrape_mag_homepage():
                     })
             except ValueError:
                 continue
-    
+
     print(f"Found {len(prices)} price records")
     return prices
 
@@ -150,25 +150,27 @@ def upload_to_database(prices):
     if not db_url:
         print("ERROR: DATABASE_URL not set")
         return
-    
+
     conn = psycopg.connect(db_url)
     cur = conn.cursor()
-    
     inserted = 0
     skipped = 0
+
     for p in prices:
         try:
             # Check if already exists
             cur.execute("""
                 SELECT 1 FROM cattle_prices
-                WHERE country = 'Argentina' AND livestock_class = %s
-                AND timestamp = %s AND data_source = 'MAG_LIVE'
+                WHERE country = 'AR'
+                AND livestock_class = %s
+                AND timestamp = %s
+                AND data_source = 'MAG_LIVE'
             """, (p["livestock_class"], p["timestamp"]))
-            
+
             if cur.fetchone():
                 skipped += 1
                 continue
-            
+
             cur.execute("""
                 INSERT INTO cattle_prices (country, region, livestock_class, weight_category,
                     price_per_kg_local, price_per_kg_usd, local_currency, data_source, timestamp)
@@ -183,7 +185,7 @@ def upload_to_database(prices):
             print(f"DB error for {p['livestock_class']}: {e}")
             conn.rollback()
             continue
-    
+
     conn.commit()
     cur.close()
     conn.close()
