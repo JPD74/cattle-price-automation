@@ -9,67 +9,64 @@ jobs:
   collect_cattle_prices:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
       - name: Cleanup old NULL records
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python cleanup_old_records.py
-      - name: Upload Brazil CEPEA cattle prices
+      - name: Upload Brazil CEPEA
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_brazil_cepea.py
-      - name: Upload New Zealand cattle prices
+      - name: Upload NZ
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_newzealand.py
-      - name: Upload Australian cattle prices
+      - name: Upload AU
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_australia.py
-      - name: Upload Paraguay cattle prices
+      - name: Upload PY
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_paraguay.py
-      - name: Upload Uruguay cattle prices
+      - name: Upload UY
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_uruguay.py
-      - name: Upload Argentina cattle prices
+      - name: Upload AR
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_argentina.py
-      - name: Upload USA cattle prices
+      - name: Upload USA
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_usa.py
-      - name: Upload crop prices
+      - name: Upload crops
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python upload_crops.py
-              - name: Live scrape USA (USDA)
+      - name: Scrape USA
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scrape_live_usa.py
-      - name: Live scrape Brazil (CEPEA)
+      - name: Scrape Brazil
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scrape_live_brazil.py
-      - name: Live scrape Australia (MLA)
+      - name: Scrape Australia
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scrape_live_australia.py
-      - name: Live scrape NZ/PY/UY
+      - name: Scrape NZ PY UY
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scrape_live_nz_py_uy.py
-      - name: Live scrape Argentina (MAG)
+      - name: Scrape Argentina
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scrape_live_argentina.py
@@ -81,7 +78,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python seed_cost_benchmarks.py
-      - name: Persist trade signals
+      - name: Persist signals
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python persist_signals.py
+        run: python persist_signals.py        
