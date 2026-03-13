@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agricultural Price Dashboard</title>
+<title>Livestock Intelligence Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -11,252 +11,363 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 24px 32px; border-bottom: 1px solid #334155; }
 .header h1 { font-size: 24px; color: #f8fafc; }
 .header p { color: #94a3b8; margin-top: 4px; font-size: 14px; }
-.tabs { display: flex; gap: 8px; padding: 16px 32px; background: #1e293b; border-bottom: 1px solid #334155; }
-.tab { padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; background: transparent; color: #94a3b8; border: 1px solid transparent; transition: all 0.2s; }
+.tabs { display: flex; gap: 4px; padding: 12px 32px; background: #1e293b; border-bottom: 1px solid #334155; flex-wrap: wrap; }
+.tab { padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; background: transparent; color: #94a3b8; border: 1px solid transparent; }
 .tab:hover { color: #e2e8f0; background: #334155; }
 .tab.active { background: #3b82f6; color: white; border-color: #3b82f6; }
 .content { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 24px; }
 .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
-.card h3 { font-size: 14px; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
-.card .value { font-size: 32px; font-weight: 700; color: #f8fafc; }
+.card h3 { font-size: 13px; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.card .value { font-size: 28px; font-weight: 700; color: #f8fafc; }
 .card .sub { font-size: 13px; color: #64748b; margin-top: 4px; }
-.chart-container { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
-.chart-container h2 { font-size: 18px; margin-bottom: 16px; color: #f8fafc; }
+.signal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.signal-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; }
+.signal-card .country { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+.signal-card .trade { font-size: 16px; font-weight: 600; color: #f8fafc; margin: 4px 0; }
+.signal-card .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.signal-card .metric { font-size: 12px; }
+.signal-card .metric .label { color: #64748b; }
+.signal-card .metric .val { color: #e2e8f0; font-weight: 600; font-size: 14px; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.badge.strong_buy { background: #065f46; color: #6ee7b7; }
+.badge.buy { background: #064e3b; color: #34d399; }
+.badge.hold { background: #713f12; color: #fbbf24; }
+.badge.watch { background: #7c2d12; color: #fb923c; }
+.badge.avoid { background: #7f1d1d; color: #fca5a5; }
+.badge.cheap { background: #065f46; color: #6ee7b7; }
+.badge.fair { background: #713f12; color: #fbbf24; }
+.badge.expensive { background: #7f1d1d; color: #fca5a5; }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 12px 16px; background: #334155; color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-th:first-child { border-radius: 8px 0 0 0; }
-th:last-child { border-radius: 0 8px 0 0; }
-td { padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 14px; }
-tr:hover td { background: #1e293b; }
-.price-usd { color: #4ade80; font-weight: 600; }
-.price-local { color: #94a3b8; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-.badge-au { background: #422006; color: #fbbf24; }
-.badge-br { background: #052e16; color: #4ade80; }
-.badge-us { background: #172554; color: #60a5fa; }
-.badge-nz { background: #0c0a09; color: #e7e5e4; }
-.badge-uy { background: #1e1b4b; color: #a5b4fc; }
-.badge-ar { background: #3b0764; color: #d8b4fe; }
-.badge-py { background: #450a0a; color: #fca5a5; }
-.section { display: none; }
-.section.active { display: block; }
-.loading { text-align: center; padding: 60px; color: #64748b; }
-.filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-.filters select { padding: 8px 12px; border-radius: 6px; background: #334155; color: #e2e8f0; border: 1px solid #475569; font-size: 14px; cursor: pointer; }
-.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
-.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
-.legend-color { width: 16px; height: 16px; border-radius: 3px; }
-.hist-wrap { position: relative; height: 400px; }
+th { text-align: left; padding: 10px 12px; font-size: 12px; color: #64748b; border-bottom: 1px solid #334155; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #1e293b; }
+tr:hover { background: #1e293b; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+select, input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+.btn { background: #3b82f6; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.btn:hover { background: #2563eb; }
+.chart-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+.pos { color: #34d399; }
+.neg { color: #f87171; }
+.loading { text-align: center; padding: 40px; color: #64748b; }
 </style>
 </head>
 <body>
 <div class="header">
-<h1>Agricultural Price Dashboard</h1>
-<p>Real-time cattle and crop prices across AU, NZ, BR, PY, UY, AR, US</p>
+<h1>Livestock Intelligence Dashboard</h1>
+<p>Real-time cattle price intelligence across 7 countries | Stage-trade margins | Market signals</p>
 </div>
 <div class="tabs">
-<div class="tab active" onclick="showTab('overview')">Overview</div>
-<div class="tab" onclick="showTab('historical')">Historical Bands</div>
-<div class="tab" onclick="showTab('cattle')">Cattle Prices</div>
-<div class="tab" onclick="showTab('crops')">Crop Prices</div>
-<div class="tab" onclick="showTab('compare')">Cross-Country</div>
+<div class="tab active" onclick="switchTab('pulse')">Market Pulse</div>
+<div class="tab" onclick="switchTab('signals')">Trade Signals</div>
+<div class="tab" onclick="switchTab('herd')">Herd Portfolio</div>
+<div class="tab" onclick="switchTab('simulator')">Scenario Simulator</div>
+<div class="tab" onclick="switchTab('prices')">Price Data</div>
+<div class="tab" onclick="switchTab('spreads')">Cross-Country</div>
 </div>
 <div class="content">
-<div id="overview" class="section active">
-<div class="grid" id="summary-cards"><div class="loading">Loading...</div></div>
-<div class="chart-container"><h2>Cattle Price Comparison (USD/kg)</h2><canvas id="compareChart"></canvas></div>
-<div class="chart-container"><h2>Latest Prices by Country</h2><div id="latest-table"><div class="loading">Loading...</div></div></div>
+
+<!-- MARKET PULSE TAB -->
+<div id="tab-pulse" class="tab-content active">
+<div class="grid" id="pulse-cards"><div class="loading">Loading market pulse...</div></div>
+<div class="chart-box"><h3 style="color:#94a3b8;margin-bottom:16px">Benchmark Prices by Country (USD/kg)</h3><canvas id="benchmarkChart" height="80"></canvas></div>
+<div class="card"><h3>Latest Prices by Country</h3><div id="pulse-table"><div class="loading">Loading...</div></div></div>
 </div>
-<div id="historical" class="section">
-<div class="filters">
-<select id="hist-country" onchange="loadHistorical()">
-<option value="AU">Australia - EYCI</option>
-<option value="US">USA - Choice Steers</option>
-<option value="BR">Brazil - Boi Gordo</option>
-<option value="UY">Uruguay - Novillo Gordo</option>
-<option value="NZ">New Zealand - Prime Steer</option>
-<option value="AR">Argentina - Novillo</option>
-<option value="PY">Paraguay - Novillo</option>
+
+<!-- TRADE SIGNALS TAB -->
+<div id="tab-signals" class="tab-content">
+<div style="margin-bottom:16px;display:flex;gap:12px;align-items:center">
+<label style="color:#94a3b8;font-size:13px">Country:</label>
+<select id="signal-country" onchange="loadSignals()">
+<option value="">All Countries</option>
+<option value="AU">Australia</option>
+<option value="BR">Brazil</option>
+<option value="AR">Argentina</option>
+<option value="UY">Uruguay</option>
+<option value="PY">Paraguay</option>
+<option value="US">USA</option>
+<option value="NZ">New Zealand</option>
 </select>
 </div>
-<h2 id="hist-title">Historical Price Analysis</h2>
-<div id="hist-bands" class="grid"><div class="loading">Select a country...</div></div>
-<div class="chart-container"><div class="hist-wrap"><canvas id="histChart"></canvas></div><div id="hist-legend" class="legend"></div></div>
+<h3 style="color:#94a3b8;margin-bottom:12px;font-size:14px">NET MARGIN BY STAGE TRADE</h3>
+<div id="signals-grid" class="signal-grid"><div class="loading">Loading trade signals...</div></div>
+<div class="chart-box" style="margin-top:24px"><h3 style="color:#94a3b8;margin-bottom:16px">Trade ROI Comparison</h3><canvas id="roiChart" height="100"></canvas></div>
 </div>
-<div id="cattle" class="section">
-<div class="filters">
-<select id="cattle-country" onchange="loadCattlePrices()">
-<option value="">All Countries</option><option value="AU">Australia</option><option value="NZ">New Zealand</option><option value="BR">Brazil</option><option value="PY">Paraguay</option><option value="UY">Uruguay</option><option value="AR">Argentina</option><option value="US">USA</option>
+
+<!-- HERD PORTFOLIO TAB -->
+<div id="tab-herd" class="tab-content">
+<div style="margin-bottom:16px;display:flex;gap:12px;align-items:center">
+<label style="color:#94a3b8;font-size:13px">Country:</label>
+<select id="herd-country" onchange="loadHerd()">
+<option value="AU">Australia</option>
+<option value="BR">Brazil</option>
+<option value="AR">Argentina</option>
+<option value="UY">Uruguay</option>
+<option value="PY">Paraguay</option>
+<option value="US">USA</option>
+<option value="NZ">New Zealand</option>
 </select>
 </div>
-<div class="chart-container"><h2>Cattle Prices</h2><div id="cattle-table"><div class="loading">Loading...</div></div></div>
+<div class="grid" id="herd-summary"><div class="loading">Select a country to view herd valuation</div></div>
+<div class="card" style="margin-top:16px"><h3>Herd Inventory Detail</h3><div id="herd-table"><div class="loading">No herd data. Add inventory via API.</div></div></div>
 </div>
-<div id="crops" class="section">
-<div class="filters">
-<select id="crop-type" onchange="loadCropPrices()">
-<option value="">All Crops</option><option value="Soybeans">Soybeans</option><option value="Corn">Corn</option><option value="Wheat">Wheat</option>
+
+<!-- SCENARIO SIMULATOR TAB -->
+<div id="tab-simulator" class="tab-content">
+<div class="card" style="margin-bottom:24px">
+<h3>Stage Trade Scenario Simulator</h3>
+<p style="color:#64748b;font-size:13px;margin-bottom:16px">Adjust parameters to model trade outcomes</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+<div><label style="color:#94a3b8;font-size:12px;display:block;margin-bottom:4px">Country</label>
+<select id="sim-country" onchange="loadSimTrades()" style="width:100%">
+<option value="AU">Australia</option><option value="BR">Brazil</option><option value="AR">Argentina</option>
+<option value="UY">Uruguay</option><option value="PY">Paraguay</option><option value="US">USA</option><option value="NZ">New Zealand</option>
+</select></div>
+<div><label style="color:#94a3b8;font-size:12px;display:block;margin-bottom:4px">Trade</label>
+<select id="sim-trade" style="width:100%"></select></div>
+<div><label style="color:#94a3b8;font-size:12px;display:block;margin-bottom:4px">Head Count</label>
+<input id="sim-head" type="number" value="100" min="1" style="width:100%"></div>
+<div><label style="color:#94a3b8;font-size:12px;display:block;margin-bottom:4px">Entry Weight (kg)</label>
+<input id="sim-entry" type="number" value="300" min="100" style="width:100%"></div>
+</div>
+<button class="btn" style="margin-top:16px" onclick="runSimulation()">Run Simulation</button>
+</div>
+<div id="sim-results"></div>
+</div>
+
+<!-- PRICE DATA TAB -->
+<div id="tab-prices" class="tab-content">
+<div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+<select id="price-country" onchange="loadPrices()">
+<option value="">All Countries</option>
+<option value="AU">AU</option><option value="BR">BR</option><option value="AR">AR</option>
+<option value="UY">UY</option><option value="PY">PY</option><option value="US">US</option><option value="NZ">NZ</option>
 </select>
+<input id="price-class" placeholder="Livestock class filter..." onchange="loadPrices()">
 </div>
-<div class="chart-container"><h2>Crop Prices</h2><div id="crop-table"><div class="loading">Loading...</div></div></div>
+<div class="card"><div id="price-table"><div class="loading">Loading prices...</div></div></div>
 </div>
-<div id="compare" class="section">
-<div class="chart-container"><h2>Benchmark Cattle Comparison (All Countries)</h2><canvas id="crossChart"></canvas></div>
-<div class="chart-container"><h2>Crop Price Comparison</h2><canvas id="cropCompareChart"></canvas></div>
+
+<!-- CROSS-COUNTRY TAB -->
+<div id="tab-spreads" class="tab-content">
+<div class="chart-box"><h3 style="color:#94a3b8;margin-bottom:16px">Cross-Country Price Spread (USD/kg)</h3><canvas id="spreadChart" height="100"></canvas></div>
+<div class="card"><h3>Spread Detail</h3><div id="spread-table"><div class="loading">Loading spreads...</div></div></div>
 </div>
-</div>
+
+</div><!-- end content -->
 <script>
 const API = window.location.origin;
-const FLAGS = {AU:'\ud83c\udde6\ud83c\uddfa',NZ:'\ud83c\uddf3\ud83c\uddff',BR:'\ud83c\udde7\ud83c\uddf7',PY:'\ud83c\uddf5\ud83c\uddfe',UY:'\ud83c\uddfa\ud83c\uddfe',AR:'\ud83c\udde6\ud83c\uddf7',US:'\ud83c\uddfa\ud83c\uddf8'};
-const NAMES = {AU:'Australia',NZ:'New Zealand',BR:'Brazil',PY:'Paraguay',UY:'Uruguay',AR:'Argentina',US:'USA'};
-const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4'];
-let compareChart, crossChart, cropCompareChart, histChart;
-const BANDS = [
-{label:'Extremely High (90-100th)', color:'#3b82f6', bg:'rgba(59,130,246,0.4)'},
-{label:'Well Above Avg (75-90th)', color:'#22c55e', bg:'rgba(34,197,94,0.4)'},
-{label:'Above Average (50-75th)', color:'#a3e635', bg:'rgba(163,230,53,0.35)'},
-{label:'Below Average (25-50th)', color:'#eab308', bg:'rgba(234,179,8,0.35)'},
-{label:'Well Below Avg (10-25th)', color:'#f97316', bg:'rgba(249,115,22,0.4)'},
-{label:'Extremely Low (0-10th)', color:'#ef4444', bg:'rgba(239,68,68,0.4)'}
-];
-function showTab(id) {
-document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-document.getElementById(id).classList.add('active');
-event.target.classList.add('active');
-if (id === 'cattle') loadCattlePrices();
-if (id === 'crops') loadCropPrices();
-if (id === 'compare') loadCrossCountry();
-if (id === 'historical') loadHistorical();
+let charts = {};
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
+  if (name==='pulse') loadPulse();
+  if (name==='signals') loadSignals();
+  if (name==='herd') loadHerd();
+  if (name==='simulator') loadSimTrades();
+  if (name==='prices') loadPrices();
+  if (name==='spreads') loadSpreads();
 }
-async function fetchJSON(url) { const r = await fetch(url); return r.json(); }
-function makeTable(hd, rows) {
-let h = '<table><thead><tr>' + hd.map(x => '<th>'+x+'</th>').join('') + '</tr></thead><tbody>';
-h += rows.map(r => '<tr>' + r.map(c => '<td>'+c+'</td>').join('') + '</tr>').join('');
-return h + '</tbody></table>';
+
+async function loadPulse() {
+  try {
+    const [summary, benchmarks, latest] = await Promise.all([
+      fetch(API+'/summary').then(r=>r.json()),
+      fetch(API+'/prices/benchmark').then(r=>r.json()),
+      fetch(API+'/prices/latest').then(r=>r.json())
+    ]);
+    document.getElementById('pulse-cards').innerHTML = `
+      <div class="card"><h3>Countries</h3><div class="value">${summary.countries}</div><div class="sub">Active markets</div></div>
+      <div class="card"><h3>Cattle Records</h3><div class="value">${summary.cattle_records}</div><div class="sub">${summary.date_range.from} to ${summary.date_range.to}</div></div>
+      <div class="card"><h3>Livestock Classes</h3><div class="value">${summary.livestock_classes}</div><div class="sub">${summary.regions} regions</div></div>
+      <div class="card"><h3>Crop Records</h3><div class="value">${summary.crop_records}</div><div class="sub">${summary.crop_types} crop types</div></div>
+    `;
+    // Benchmark chart
+    if (charts.benchmark) charts.benchmark.destroy();
+    charts.benchmark = new Chart(document.getElementById('benchmarkChart'), {
+      type:'bar', data:{labels:benchmarks.map(b=>b.country),
+      datasets:[{label:'USD/kg',data:benchmarks.map(b=>b.price_per_kg_usd),
+      backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899']}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{color:'#64748b'},grid:{color:'#1e293b'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
+    });
+    // Latest prices table
+    let html = '<table><tr><th>Country</th><th>Class</th><th>Region</th><th>USD/kg</th><th>Local/kg</th><th>Date</th></tr>';
+    latest.slice(0,50).forEach(p => {
+      html += `<tr><td>${p.country}</td><td>${p.livestock_class}</td><td>${p.region||'-'}</td><td>$${p.price_per_kg_usd.toFixed(2)}</td><td>${p.price_per_kg_local.toFixed(2)} ${p.local_currency}</td><td>${p.date}</td></tr>`;
+    });
+    html += '</table>';
+    document.getElementById('pulse-table').innerHTML = html;
+  } catch(e) { console.error('Pulse error:', e); }
 }
-function badge(c) { return '<span class="badge badge-'+c.toLowerCase()+'">'+(FLAGS[c]||'')+' '+c+'</span>'; }
-async function loadSummary() {
-const d = await fetchJSON(API+'/summary');
-document.getElementById('summary-cards').innerHTML =
-'<div class="card"><h3>Cattle Records</h3><div class="value">'+d.cattle_records+'</div><div class="sub">'+d.countries+' countries</div></div>'+
-'<div class="card"><h3>Livestock Classes</h3><div class="value">'+d.livestock_classes+'</div><div class="sub">Across all countries</div></div>'+
-'<div class="card"><h3>Date Range</h3><div class="value">'+d.date_range.from+'</div><div class="sub">to '+d.date_range.to+'</div></div>'+
-'<div class="card"><h3>Crop Records</h3><div class="value">'+d.crop_records+'</div><div class="sub">'+d.crop_types+' crop types</div></div>';
+
+async function loadSignals() {
+  const country = document.getElementById('signal-country').value;
+  const url = country ? API+'/api/intelligence/net-margin?country='+country : API+'/api/intelligence/net-margin?country=AU';
+  try {
+    let allData = [];
+    if (!country) {
+      const countries = ['AU','BR','AR','UY','PY','US','NZ'];
+      const results = await Promise.all(countries.map(c => fetch(API+'/api/intelligence/net-margin?country='+c).then(r=>r.json()).catch(()=>[])));
+      results.forEach(r => allData.push(...r));
+    } else {
+      allData = await fetch(url).then(r=>r.json());
+    }
+    allData.sort((a,b) => (b.roi_net_pct||b.roi_gross_pct) - (a.roi_net_pct||a.roi_gross_pct));
+    let html = '';
+    allData.forEach(s => {
+      const roi = s.roi_net_pct !== undefined ? s.roi_net_pct : s.roi_gross_pct;
+      const label = roi > 30 ? 'strong_buy' : roi > 15 ? 'buy' : roi > 0 ? 'hold' : roi > -10 ? 'watch' : 'avoid';
+      html += `<div class="signal-card">
+        <div class="country">${s.country} <span class="badge ${label}">${label.replace('_',' ')}</span></div>
+        <div class="trade">${s.trade_name}</div>
+        <div class="metrics">
+          <div class="metric"><div class="label">Gross Margin</div><div class="val ${s.gross_margin_usd>0?'pos':'neg'}">$${s.gross_margin_usd.toFixed(0)}/hd</div></div>
+          <div class="metric"><div class="label">Net Margin</div><div class="val ${(s.net_margin_usd||0)>0?'pos':'neg'}">$${(s.net_margin_usd||0).toFixed(0)}/hd</div></div>
+          <div class="metric"><div class="label">ROI (Net)</div><div class="val ${roi>0?'pos':'neg'}">${roi.toFixed(1)}%</div></div>
+          <div class="metric"><div class="label">GM/AE/wk</div><div class="val">$${(s.gm_per_ae_week||0).toFixed(2)}</div></div>
+          <div class="metric"><div class="label">Duration</div><div class="val">${s.duration_months}m</div></div>
+          <div class="metric"><div class="label">Capital</div><div class="val">$${s.buy_cost_usd.toFixed(0)}</div></div>
+        </div></div>`;
+    });
+    document.getElementById('signals-grid').innerHTML = html || '<div class="loading">No signals available</div>';
+    // ROI chart
+    if (charts.roi) charts.roi.destroy();
+    const top = allData.slice(0, 12);
+    charts.roi = new Chart(document.getElementById('roiChart'), {
+      type:'bar', data:{labels:top.map(s=>s.country+': '+s.trade_name),
+      datasets:[{label:'Gross ROI %',data:top.map(s=>s.roi_gross_pct),backgroundColor:'#3b82f6'},
+                {label:'Net ROI %',data:top.map(s=>s.roi_net_pct||0),backgroundColor:'#10b981'}]},
+      options:{indexAxis:'y',responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'#1e293b'}},y:{ticks:{color:'#94a3b8',font:{size:11}},grid:{display:false}}}}
+    });
+  } catch(e) { console.error('Signals error:', e); }
 }
-async function loadCompareChart() {
-const data = await fetchJSON(API+'/prices/benchmark');
-if (compareChart) compareChart.destroy();
-compareChart = new Chart(document.getElementById('compareChart'), {
-type: 'bar',
-data: {
-labels: data.map(d=>(FLAGS[d.country]||'')+' '+d.livestock_class),
-datasets: [{label:'USD/kg',data:data.map(d=>d.price_per_kg_usd),backgroundColor:COLORS.slice(0,data.length),borderRadius:6}]
-},
-options: {
-responsive:true, plugins:{legend:{display:false}},
-scales:{
-y:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}},
-x:{ticks:{color:'#94a3b8'},grid:{display:false}}
+
+async function loadHerd() {
+  const country = document.getElementById('herd-country').value;
+  try {
+    const data = await fetch(API+'/api/intelligence/herd-valuation?country='+country).then(r=>r.json());
+    if (data.items && data.items.length > 0) {
+      document.getElementById('herd-summary').innerHTML = `
+        <div class="card"><h3>Total Head</h3><div class="value">${data.total_head}</div></div>
+        <div class="card"><h3>Total AE</h3><div class="value">${data.total_ae}</div></div>
+        <div class="card"><h3>Portfolio Value</h3><div class="value">$${data.total_value_usd.toLocaleString()}</div><div class="sub">USD</div></div>
+      `;
+      let html = '<table><tr><th>Class</th><th>Head</th><th>Avg Wt</th><th>Price/kg</th><th>Value/Head</th><th>Line Value</th><th>AE</th></tr>';
+      data.items.forEach(i => {
+        html += `<tr><td>${i.class}</td><td>${i.head}</td><td>${i.avg_weight_kg}kg</td><td>$${i.price_usd_kg.toFixed(2)}</td><td>$${i.value_per_head_usd.toFixed(0)}</td><td>$${i.line_value_usd.toLocaleString()}</td><td>${i.total_ae}</td></tr>`;
+      });
+      html += '</table>';
+      document.getElementById('herd-table').innerHTML = html;
+    } else {
+      document.getElementById('herd-summary').innerHTML = '<div class="card"><h3>No Herd Data</h3><div class="sub">POST inventory to /api/intelligence/herd-valuation</div></div>';
+    }
+  } catch(e) { console.error('Herd error:', e); }
 }
+
+let simTradesData = [];
+async function loadSimTrades() {
+  const country = document.getElementById('sim-country').value;
+  try {
+    simTradesData = await fetch(API+'/api/intelligence/stage-trades?country='+country).then(r=>r.json());
+    const sel = document.getElementById('sim-trade');
+    sel.innerHTML = simTradesData.map(t => `<option value="${t.trade_name}">${t.trade_name} (${t.buy_class} -> ${t.sell_class})</option>`).join('');
+  } catch(e) { console.error('SimTrades error:', e); }
 }
-});
+
+async function runSimulation() {
+  const country = document.getElementById('sim-country').value;
+  const tradeName = document.getElementById('sim-trade').value;
+  const head = parseInt(document.getElementById('sim-head').value) || 100;
+  const entryWt = parseInt(document.getElementById('sim-entry').value) || 300;
+  try {
+    const margins = await fetch(API+'/api/intelligence/net-margin?country='+country+'&trade='+encodeURIComponent(tradeName)).then(r=>r.json());
+    if (margins.length === 0) { document.getElementById('sim-results').innerHTML = '<div class="card"><div class="loading">No data for this trade</div></div>'; return; }
+    const m = margins[0];
+    const scaledBuyCost = m.buy_price_usd_kg * entryWt;
+    const scaledSellRev = m.sell_price_usd_kg * (entryWt + m.weight_gain_kg);
+    const scaledGM = scaledSellRev - scaledBuyCost;
+    const totalInvest = scaledBuyCost * head;
+    const totalRev = scaledSellRev * head;
+    const totalGM = scaledGM * head;
+    const totalProdCost = (m.production_cost_usd || 0) * head;
+    const totalNet = totalGM - totalProdCost;
+    document.getElementById('sim-results').innerHTML = `
+      <div class="grid">
+        <div class="card"><h3>Total Investment</h3><div class="value">$${totalInvest.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sub">${head} head x $${scaledBuyCost.toFixed(0)}/hd</div></div>
+        <div class="card"><h3>Total Revenue</h3><div class="value">$${totalRev.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sub">${head} head x $${scaledSellRev.toFixed(0)}/hd</div></div>
+        <div class="card"><h3>Gross Margin</h3><div class="value ${totalGM>0?'pos':'neg'}">$${totalGM.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sub">$${scaledGM.toFixed(0)}/head</div></div>
+        <div class="card"><h3>Net Margin (est)</h3><div class="value ${totalNet>0?'pos':'neg'}">$${totalNet.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sub">After production costs</div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><h3>Trade Parameters</h3>
+      <table><tr><th>Param</th><th>Value</th></tr>
+      <tr><td>Buy Price</td><td>$${m.buy_price_usd_kg.toFixed(2)}/kg</td></tr>
+      <tr><td>Sell Price</td><td>$${m.sell_price_usd_kg.toFixed(2)}/kg</td></tr>
+      <tr><td>Entry Weight</td><td>${entryWt}kg</td></tr>
+      <tr><td>Exit Weight</td><td>${entryWt + m.weight_gain_kg}kg</td></tr>
+      <tr><td>Weight Gain</td><td>${m.weight_gain_kg}kg</td></tr>
+      <tr><td>Duration</td><td>${m.duration_months} months</td></tr>
+      <tr><td>Gross ROI</td><td class="${m.roi_gross_pct>0?'pos':'neg'}">${m.roi_gross_pct}%</td></tr>
+      <tr><td>Net ROI</td><td class="${(m.roi_net_pct||0)>0?'pos':'neg'}">${m.roi_net_pct||0}%</td></tr>
+      </table></div>`;
+  } catch(e) { console.error('Sim error:', e); }
 }
-async function loadLatestTable() {
-const data = await fetchJSON(API+'/prices/latest');
-const rows = data.map(d => [badge(d.country),d.region,d.livestock_class,d.weight_category,'<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>','<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>',d.date]);
-document.getElementById('latest-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'],rows);
+
+async function loadPrices() {
+  const country = document.getElementById('price-country').value;
+  const cls = document.getElementById('price-class').value;
+  let url = API+'/prices?limit=200';
+  if (country) url += '&country='+country;
+  if (cls) url += '&livestock_class='+encodeURIComponent(cls);
+  try {
+    const data = await fetch(url).then(r=>r.json());
+    let html = '<table><tr><th>Date</th><th>Country</th><th>Region</th><th>Class</th><th>Weight</th><th>USD/kg</th><th>Local/kg</th><th>Source</th></tr>';
+    data.forEach(p => {
+      html += `<tr><td>${p.date}</td><td>${p.country}</td><td>${p.region||'-'}</td><td>${p.livestock_class}</td><td>${p.weight_category||'-'}</td><td>$${p.price_per_kg_usd.toFixed(2)}</td><td>${p.price_per_kg_local.toFixed(2)} ${p.local_currency}</td><td>${p.data_source}</td></tr>`;
+    });
+    html += '</table>';
+    document.getElementById('price-table').innerHTML = html;
+  } catch(e) { console.error('Prices error:', e); }
 }
-async function loadCattlePrices() {
-const c = document.getElementById('cattle-country').value;
-const data = await fetchJSON(API+'/prices?limit=200'+(c?'&country='+c:''));
-const rows = data.map(d => [badge(d.country),d.region,d.livestock_class,d.weight_category,'<span class="price-usd">$'+d.price_per_kg_usd.toFixed(2)+'</span>','<span class="price-local">'+d.price_per_kg_local.toFixed(2)+' '+d.local_currency+'</span>',d.date]);
-document.getElementById('cattle-table').innerHTML = makeTable(['Country','Region','Class','Weight','USD/kg','Local/kg','Date'],rows);
+
+async function loadSpreads() {
+  try {
+    const data = await fetch(API+'/api/intelligence/spread').then(r=>r.json());
+    // Group by canonical name
+    const groups = {};
+    data.forEach(d => {
+      if (!groups[d.canonical_name]) groups[d.canonical_name] = [];
+      groups[d.canonical_name].push(d);
+    });
+    // Chart
+    if (charts.spread) charts.spread.destroy();
+    const labels = [...new Set(data.map(d=>d.country))];
+    const classNames = Object.keys(groups);
+    const colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+    const datasets = classNames.map((cn, i) => ({
+      label: cn,
+      data: labels.map(c => { const found = groups[cn].find(d=>d.country===c); return found ? found.price_usd_kg : 0; }),
+      backgroundColor: colors[i % colors.length]
+    }));
+    charts.spread = new Chart(document.getElementById('spreadChart'), {
+      type:'bar', data:{labels, datasets},
+      options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{y:{ticks:{color:'#64748b'},grid:{color:'#1e293b'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
+    });
+    // Table
+    let html = '<table><tr><th>Country</th><th>Source Class</th><th>Canonical</th><th>Stage</th><th>USD/kg</th><th>Local/kg</th><th>Currency</th><th>Date</th></tr>';
+    data.forEach(d => {
+      html += `<tr><td>${d.country}</td><td>${d.source_class}</td><td>${d.canonical_name}</td><td>${d.stage}</td><td>$${d.price_usd_kg.toFixed(2)}</td><td>${d.price_local_kg.toFixed(2)}</td><td>${d.currency}</td><td>${d.date}</td></tr>`;
+    });
+    html += '</table>';
+    document.getElementById('spread-table').innerHTML = html;
+  } catch(e) { console.error('Spreads error:', e); }
 }
-async function loadCropPrices() {
-const crop = document.getElementById('crop-type').value;
-const data = await fetchJSON(API+'/crops?limit=200'+(crop?'&crop_type='+crop:''));
-const rows = data.map(d => [badge(d.country),d.region||'-',d.crop_type,'<span class="price-usd">$'+d.price_per_tonne_usd.toFixed(2)+'</span>','<span class="price-local">'+d.price_per_tonne_local.toFixed(2)+' '+d.local_currency+'</span>',d.delivery_period||'-',d.date]);
-document.getElementById('crop-table').innerHTML = makeTable(['Country','Region','Crop','USD/t','Local/t','Delivery','Date'],rows);
-}
-async function loadCrossCountry() {
-const cattle = await fetchJSON(API+'/prices/benchmark');
-if (crossChart) crossChart.destroy();
-crossChart = new Chart(document.getElementById('crossChart'), {
-type:'bar',
-data:{labels:cattle.map(d=>(FLAGS[d.country]||'')+' '+d.livestock_class),datasets:[{label:'USD/kg',data:cattle.map(d=>d.price_per_kg_usd),backgroundColor:COLORS,borderRadius:6}]},
-options:{responsive:true,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}},y:{ticks:{color:'#e2e8f0'},grid:{display:false}}}}
-});
-const soy = await fetchJSON(API+'/crops/compare?crop_type=Soybeans');
-const corn = await fetchJSON(API+'/crops/compare?crop_type=Corn');
-if (cropCompareChart) cropCompareChart.destroy();
-const ac = [...new Set([...soy.map(d=>d.country),...corn.map(d=>d.country)])];
-cropCompareChart = new Chart(document.getElementById('cropCompareChart'), {
-type:'bar',
-data:{labels:ac.map(c=>(FLAGS[c]||'')+' '+NAMES[c]),datasets:[
-{label:'Soybeans (USD/t)',data:ac.map(c=>{const f=soy.find(d=>d.country===c);return f?f.price_per_tonne_usd:0;}),backgroundColor:'#10b981',borderRadius:6},
-{label:'Corn (USD/t)',data:ac.map(c=>{const f=corn.find(d=>d.country===c);return f?f.price_per_tonne_usd:0;}),backgroundColor:'#f59e0b',borderRadius:6}
-]},
-options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{y:{beginAtZero:true,ticks:{color:'#94a3b8',callback:v=>'$'+v},grid:{color:'#1e293b'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
-});
-}
-async function loadHistorical() {
-const country = document.getElementById('hist-country').value;
-const [prices, bands] = await Promise.all([
-fetchJSON(API+'/api/historical-prices?country='+country),
-fetchJSON(API+'/api/percentile-bands?country='+country)
-]);
-if (!prices.length || !bands.length) return;
-const b = bands[0];
-const years = prices.map(p => p.year);
-const vals = prices.map(p => p.price_usd_kg);
-const latest = vals[vals.length-1];
-document.getElementById('hist-title').textContent = (FLAGS[country]||'')+' '+(NAMES[country]||country)+' - '+b.livestock_class+' (USD/kg)';
-if (histChart) histChart.destroy();
-histChart = new Chart(document.getElementById('histChart'), {
-type: 'line',
-data: {
-labels: years,
-datasets: [
-{label:'Max',data:years.map(()=>b.max),fill:{target:1,above:BANDS[0].bg},borderWidth:0,pointRadius:0,order:6},
-{label:'P90',data:years.map(()=>b.p90),fill:{target:2,above:BANDS[1].bg},borderWidth:0,pointRadius:0,order:5},
-{label:'P75',data:years.map(()=>b.p75),fill:{target:3,above:BANDS[2].bg},borderWidth:0,pointRadius:0,order:4},
-{label:'P50',data:years.map(()=>b.p50),fill:{target:4,above:BANDS[3].bg},borderWidth:0,pointRadius:0,order:3},
-{label:'P25',data:years.map(()=>b.p25),fill:{target:5,above:BANDS[4].bg},borderWidth:0,pointRadius:0,order:2},
-{label:'P10',data:years.map(()=>b.p10),fill:{target:6,above:BANDS[5].bg},borderWidth:0,pointRadius:0,order:1},
-{label:'Min',data:years.map(()=>b.min),fill:false,borderWidth:0,pointRadius:0,order:0},
-{label:'Actual Price',data:vals,fill:false,borderColor:'#ffffff',borderWidth:3,pointBackgroundColor:'#ffffff',pointRadius:4,pointHoverRadius:7,tension:0.3,order:7}
-]
-},
-options: {
-responsive:true, maintainAspectRatio:false,
-plugins:{legend:{display:false},tooltip:{filter:item=>item.dataset.label==='Actual Price',callbacks:{label:ctx=>'$'+ctx.parsed.y.toFixed(2)+'/kg'}}},
-scales:{
-y:{min:Math.max(0,b.min*0.8),max:b.max*1.1,ticks:{color:'#94a3b8',callback:v=>'$'+v.toFixed(2)},grid:{color:'#334155'}},
-x:{ticks:{color:'#94a3b8'},grid:{color:'#1e293b'}}
-}
-}
-});
-document.getElementById('hist-legend').innerHTML = BANDS.map(b=>'<div class="legend-item"><div class="legend-color" style="background:'+b.color+'"></div>'+b.label+'</div>').join('')+'<div class="legend-item"><div class="legend-color" style="background:#fff"></div>Actual Price</div>';
-let pctLabel,pctColor;
-if(latest>=b.p90){pctLabel='Extremely High';pctColor=BANDS[0].color;}
-else if(latest>=b.p75){pctLabel='Well Above Average';pctColor=BANDS[1].color;}
-else if(latest>=b.p50){pctLabel='Above Average';pctColor=BANDS[2].color;}
-else if(latest>=b.p25){pctLabel='Below Average';pctColor=BANDS[3].color;}
-else if(latest>=b.p10){pctLabel='Well Below Average';pctColor=BANDS[4].color;}
-else{pctLabel='Extremely Low';pctColor=BANDS[5].color;}
-document.getElementById('hist-bands').innerHTML =
-'<div class="card"><h3>Latest Price ('+years[years.length-1]+')</h3><div class="value" style="color:'+pctColor+'">$'+latest.toFixed(2)+'</div><div class="sub">'+pctLabel+'</div></div>'+
-'<div class="card"><h3>10th Percentile</h3><div class="value" style="color:#ef4444">$'+b.p10.toFixed(2)+'</div><div class="sub">Floor</div></div>'+
-'<div class="card"><h3>25th Percentile</h3><div class="value" style="color:#f97316">$'+b.p25.toFixed(2)+'</div><div class="sub">Below average</div></div>'+
-'<div class="card"><h3>Median (50th)</h3><div class="value" style="color:#eab308">$'+b.p50.toFixed(2)+'</div><div class="sub">Midpoint</div></div>'+
-'<div class="card"><h3>75th Percentile</h3><div class="value" style="color:#22c55e">$'+b.p75.toFixed(2)+'</div><div class="sub">Above average</div></div>'+
-'<div class="card"><h3>90th Percentile</h3><div class="value" style="color:#3b82f6">$'+b.p90.toFixed(2)+'</div><div class="sub">Ceiling</div></div>'+
-'<div class="card"><h3>Range</h3><div class="value">$'+b.min.toFixed(2)+' - $'+b.max.toFixed(2)+'</div><div class="sub">'+b.data_points+' years</div></div>';
-}
-loadSummary();
-loadCompareChart();
-loadLatestTable();
+
+// Initialize
+loadPulse();
 </script>
 </body>
 </html>
