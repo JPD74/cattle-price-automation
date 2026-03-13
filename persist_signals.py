@@ -7,13 +7,13 @@ Calculates stage-trade margins with cost benchmarks and writes to signals table.
 import os
 import json
 from datetime import date
-import psycopg2
+import psycopg
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
 def persist():
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
     today = date.today()
     signals_written = 0
@@ -67,8 +67,10 @@ def persist():
 
         buy_price = float(buy_row[0])
         sell_price = float(sell_row[0])
+
         buy_weight = 300.0  # approximate entry weight
         sell_weight = buy_weight + weight_gain
+
         buy_cost = buy_price * buy_weight
         sell_revenue = sell_price * sell_weight
         gross_margin = sell_revenue - buy_cost
@@ -85,9 +87,9 @@ def persist():
         health = float(costs.get('health_cost_per_head', (0, 0))[1] or 0)
         transport = float(costs.get('transport_cost_per_head', (0, 0))[1] or 0)
         overhead = float(costs.get('overhead_cost_per_head', (0, 0))[1] or 0)
+
         total_production_cost = (feedlot_cog * weight_gain) + health + transport + overhead
         net_margin = gross_margin - total_production_cost
-
         roi = (gross_margin / buy_cost * 100) if buy_cost > 0 else 0
         weeks = duration * 4.33
         gm_per_ae_week = (gross_margin / buy_ae / weeks) if buy_ae > 0 and weeks > 0 else 0
@@ -124,17 +126,12 @@ def persist():
 
         # Insert signal
         cur.execute("""
-            INSERT INTO signals (country, signal_type, canonical_class_id, signal_value,
-                                signal_label, detail, calculation_date)
+            INSERT INTO signals (country, signal_type, canonical_class_id,
+                                 signal_value, signal_label, detail, calculation_date)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (
-            country,
-            'stage_trade_margin',
-            sell_cid,
-            round(roi, 2),
-            label,
-            json.dumps(detail),
-            today,
+            country, 'stage_trade_margin', sell_cid,
+            round(roi, 2), label, json.dumps(detail), today,
         ))
         signals_written += 1
 
@@ -152,7 +149,6 @@ def persist():
 
     cur.close()
     conn.close()
-
 
 if __name__ == "__main__":
     persist()
