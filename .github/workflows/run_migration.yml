@@ -17,4 +17,4 @@ jobs:
       - name: Run migration
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python migrate_intelligence_engine.py
+                run: python fix_class_mappings.py
