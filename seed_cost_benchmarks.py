@@ -5,7 +5,7 @@ Uses existing cost_benchmarks table with cost_type key-value pattern.
 Sources: USDA GAIN reports, MLA, CEPEA, INAC, ARP industry data (2024-2025).
 """
 import os
-import psycopg2
+import psycopg
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -72,7 +72,7 @@ BENCHMARKS = [
 
 
 def seed():
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = psycopg.connect(DATABASE_URL)
     cur = conn.cursor()
     inserted = 0
     for country, cost_type, cost_kg, cost_head, source in BENCHMARKS:
@@ -89,7 +89,6 @@ def seed():
         print(f"  {row[0]}: {row[1]} benchmarks")
     cur.close()
     conn.close()
-
 
 if __name__ == "__main__":
     seed()
