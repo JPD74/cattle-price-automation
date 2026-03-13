@@ -102,9 +102,15 @@ jobs:
         run: |
           python scrape_live_nz_py_uy.py
 
+      - name: Live scrape Argentina (Mercado Agroganadero)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scrape_live_argentina.py
+
       - name: Summary
         run: |
           echo "=== CATTLE PRICE DATA COLLECTION COMPLETE ==="
           echo "Static uploads: AU, NZ, BR, PY, UY, AR, US + Crops"
-          echo "Live scrapers: USA (USDA), Brazil (CEPEA), Australia (MLA), NZ/PY/UY"
+          echo "Live scrapers: USA (USDA), Brazil (CEPEA), Australia (MLA), NZ/PY/UY, Argentina (MAG)"
           echo "Database: Railway PostgreSQL"
