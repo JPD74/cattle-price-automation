@@ -35,7 +35,6 @@ def get_fx_rate():
         return None
 
 def scrape_mag_homepage():
-    """Scrape MAG homepage for latest remate prices table"""
     print("=== Argentina Live Cattle Price Scraper ===")
     today = date.today()
     print(f"Date: {today}")
@@ -46,9 +45,7 @@ def scrape_mag_homepage():
         return []
     
     url = "https://www.mercadoagroganadero.com.ar/dll/inicio.dll"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    }
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
     try:
         r = requests.get(url, headers=headers, timeout=60)
@@ -59,8 +56,6 @@ def scrape_mag_homepage():
         return []
     
     prices = []
-    
-    # Find all tables on the homepage
     tables = soup.find_all("table")
     print(f"Found {len(tables)} tables on homepage")
     
@@ -75,7 +70,6 @@ def scrape_mag_homepage():
             if not cat_text:
                 continue
             
-            # Try to parse min/max price columns
             try:
                 min_text = cells[1].get_text(strip=True).replace(".", "").replace(",", ".")
                 max_text = cells[2].get_text(strip=True).replace(".", "").replace(",", ".")
@@ -88,7 +82,6 @@ def scrape_mag_homepage():
             if avg_price <= 0:
                 continue
             
-            # Match to category
             matched_key = None
             for key in CATEGORY_MAP:
                 if cat_text.startswith(key):
@@ -108,22 +101,20 @@ def scrape_mag_homepage():
             price_usd = round(avg_price * fx, 4)
             
             prices.append({
-                "date": today.isoformat(),
+                "timestamp": today.isoformat(),
                 "country": "Argentina",
+                "region": "Buenos Aires",
                 "livestock_class": full_name,
                 "weight_category": weight_cat,
-                "price_local": round(avg_price, 2),
-                "currency": "ARS",
-                "price_usd": price_usd,
-                "unit": "per_kg_live",
-                "source": "Mercado Agroganadero",
+                "price_per_kg_local": round(avg_price, 4),
+                "price_per_kg_usd": price_usd,
+                "local_currency": "ARS",
+                "data_source": "MAG_LIVE",
             })
     
-    # Also try regex fallback on raw HTML for price patterns
     if not prices:
         print("No table data found, trying regex fallback...")
         html = r.text
-        # Look for patterns like: NOVILLOS...7.700...8.550
         pattern = r'(NOVILLOS|NOVILLITOS|VAQUILLONAS|TERNEROS|TERNERAS|VACAS|TOROS)[^<]*?([\d.]+)[^<]*?([\d.]+)'
         matches = re.findall(pattern, html, re.IGNORECASE)
         for cat, min_p, max_p in matches:
@@ -138,15 +129,15 @@ def scrape_mag_homepage():
                     eng_name, weight_cat = CATEGORY_MAP[cat_upper]
                     price_usd = round(avg * fx, 4)
                     prices.append({
-                        "date": today.isoformat(),
+                        "timestamp": today.isoformat(),
                         "country": "Argentina",
+                        "region": "Buenos Aires",
                         "livestock_class": eng_name,
                         "weight_category": weight_cat,
-                        "price_local": round(avg, 2),
-                        "currency": "ARS",
-                        "price_usd": price_usd,
-                        "unit": "per_kg_live",
-                        "source": "Mercado Agroganadero",
+                        "price_per_kg_local": round(avg, 4),
+                        "price_per_kg_usd": price_usd,
+                        "local_currency": "ARS",
+                        "data_source": "MAG_LIVE",
                     })
             except ValueError:
                 continue
@@ -164,19 +155,28 @@ def upload_to_database(prices):
     cur = conn.cursor()
     
     inserted = 0
+    skipped = 0
     for p in prices:
         try:
+            # Check if already exists
             cur.execute("""
-                INSERT INTO cattle_prices (date, country, livestock_class, weight_category,
-                    price_local, currency, price_usd, unit, source)
+                SELECT 1 FROM cattle_prices
+                WHERE country = 'Argentina' AND livestock_class = %s
+                AND timestamp = %s AND data_source = 'MAG_LIVE'
+            """, (p["livestock_class"], p["timestamp"]))
+            
+            if cur.fetchone():
+                skipped += 1
+                continue
+            
+            cur.execute("""
+                INSERT INTO cattle_prices (country, region, livestock_class, weight_category,
+                    price_per_kg_local, price_per_kg_usd, local_currency, data_source, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (date, country, livestock_class) DO UPDATE SET
-                    price_local = EXCLUDED.price_local,
-                    price_usd = EXCLUDED.price_usd,
-                    source = EXCLUDED.source
             """, (
-                p["date"], p["country"], p["livestock_class"], p["weight_category"],
-                p["price_local"], p["currency"], p["price_usd"], p["unit"], p["source"]
+                p["country"], p["region"], p["livestock_class"], p["weight_category"],
+                p["price_per_kg_local"], p["price_per_kg_usd"], p["local_currency"],
+                p["data_source"], p["timestamp"]
             ))
             inserted += 1
         except Exception as e:
@@ -187,17 +187,16 @@ def upload_to_database(prices):
     conn.commit()
     cur.close()
     conn.close()
-    print(f"Uploaded {inserted} Argentina price records")
+    print(f"ARGENTINA LIVE: {inserted} uploaded, {skipped} skipped")
 
 def main():
     prices = scrape_mag_homepage()
     if prices:
         for p in prices:
-            print(f"  {p['livestock_class']}: ARS {p['price_local']:,.2f}/kg = USD {p['price_usd']:.4f}/kg")
+            print(f"  {p['livestock_class']}: ARS {p['price_per_kg_local']:,.2f}/kg = USD {p['price_per_kg_usd']:.4f}/kg")
         upload_to_database(prices)
     else:
         print("WARNING: No prices scraped from Mercado Agroganadero")
-        print("Site may be down or no recent remate data available.")
 
 if __name__ == "__main__":
     main()
