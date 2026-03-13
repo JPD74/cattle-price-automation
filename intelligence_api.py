@@ -364,3 +364,191 @@ def market_signals(
     cur.close()
     conn.close()
     return signals
+
+
+@router.get("/cost-benchmarks")
+def list_cost_benchmarks(
+    country: Optional[str] = Query(None, description="Filter by country code"),
+):
+    """List cost benchmarks for all countries."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE 1=1"
+    params = []
+    if country:
+        cond += " AND country = %s"
+        params.append(country.upper())
+    cur.execute(f"""
+        SELECT country, cost_type, cost_per_kg_usd, cost_per_head_usd, source, valid_from
+        FROM cost_benchmarks {cond}
+        ORDER BY country, cost_type
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {"country": r[0], "cost_type": r[1],
+         "cost_per_kg_usd": float(r[2]) if r[2] else None,
+         "cost_per_head_usd": float(r[3]) if r[3] else None,
+         "source": r[4], "valid_from": str(r[5]) if r[5] else None}
+        for r in rows
+    ]
+
+
+@router.get("/signal-history")
+def signal_history(
+    country: Optional[str] = Query(None, description="Filter by country"),
+    days: int = Query(30, ge=1, le=365, description="Days of history"),
+):
+    """Get persisted signal history for trend analysis."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE calculation_date >= CURRENT_DATE - INTERVAL '%s days'"
+    params = [days]
+    if country:
+        cond += " AND country = %s"
+        params.append(country.upper())
+    cur.execute(f"""
+        SELECT country, signal_type, signal_label, signal_value,
+               detail, calculation_date
+        FROM signals {cond}
+        ORDER BY calculation_date DESC, country
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    import json
+    return [
+        {"country": r[0], "signal_type": r[1], "signal_label": r[2],
+         "signal_value": float(r[3]) if r[3] else None,
+         "detail": r[4] if isinstance(r[4], dict) else json.loads(r[4]) if r[4] else {},
+         "date": str(r[5])}
+        for r in rows
+    ]
+
+
+@router.get("/net-margin")
+def net_margin(
+    country: str = Query(..., description="Country code"),
+    trade: Optional[str] = Query(None, description="Trade name filter"),
+):
+    """Calculate net margin including cost benchmarks."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE st.country = %s"
+    params = [country.upper()]
+    if trade:
+        cond += " AND st.trade_name ILIKE %s"
+        params.append(f"%{trade}%")
+    cur.execute(f"""
+        SELECT st.id, st.trade_name, st.country,
+               bc.canonical_name AS buy_class, sc.canonical_name AS sell_class,
+               st.typical_duration_months, st.typical_weight_gain_kg,
+               COALESCE(bae.ae_value, bc.ae_equivalent, 1.0) AS buy_ae
+        FROM stage_trades st
+        JOIN canonical_livestock_classes bc ON bc.id = st.buy_class_id
+        JOIN canonical_livestock_classes sc ON sc.id = st.sell_class_id
+        LEFT JOIN animal_unit_equivalents bae ON bae.canonical_class_id = bc.id
+        {cond}
+    """, params)
+    trades = cur.fetchall()
+    # Get cost benchmarks
+    cur.execute("SELECT cost_type, cost_per_kg_usd, cost_per_head_usd FROM cost_benchmarks WHERE country = %s",
+                (country.upper(),))
+    costs = {row[0]: (row[1], row[2]) for row in cur.fetchall()}
+    results = []
+    for t in trades:
+        tid, tname, tcountry, buy_cls, sell_cls, dur, gain, buy_ae = t
+        if not gain or not dur:
+            continue
+        gain = float(gain)
+        buy_ae = float(buy_ae)
+        # Get prices
+        cur.execute("""
+            SELECT cp.price_per_kg_usd FROM cattle_prices cp
+            JOIN livestock_class_mapping m ON m.country = cp.country AND m.source_class = cp.livestock_class
+            JOIN canonical_livestock_classes c ON c.id = m.canonical_class_id
+            WHERE cp.country = %s AND c.canonical_name = %s AND cp.weight_category IS NOT NULL
+            ORDER BY cp.timestamp DESC LIMIT 1
+        """, (tcountry, buy_cls))
+        buy_row = cur.fetchone()
+        cur.execute("""
+            SELECT cp.price_per_kg_usd FROM cattle_prices cp
+            JOIN livestock_class_mapping m ON m.country = cp.country AND m.source_class = cp.livestock_class
+            JOIN canonical_livestock_classes c ON c.id = m.canonical_class_id
+            WHERE cp.country = %s AND c.canonical_name = %s AND cp.weight_category IS NOT NULL
+            ORDER BY cp.timestamp DESC LIMIT 1
+        """, (tcountry, sell_cls))
+        sell_row = cur.fetchone()
+        if not buy_row or not sell_row:
+            continue
+        buy_price = float(buy_row[0])
+        sell_price = float(sell_row[0])
+        buy_weight = 300.0
+        sell_weight = buy_weight + gain
+        buy_cost = buy_price * buy_weight
+        sell_revenue = sell_price * sell_weight
+        gross_margin = sell_revenue - buy_cost
+        # Costs
+        feedlot_cog = float(costs.get('feedlot_cost_per_kg_gain', (0, 0))[0] or 0)
+        health = float(costs.get('health_cost_per_head', (0, 0))[1] or 0)
+        transport = float(costs.get('transport_cost_per_head', (0, 0))[1] or 0)
+        overhead = float(costs.get('overhead_cost_per_head', (0, 0))[1] or 0)
+        total_cost = (feedlot_cog * gain) + health + transport + overhead
+        net = gross_margin - total_cost
+        roi_gross = (gross_margin / buy_cost * 100) if buy_cost > 0 else 0
+        roi_net = (net / buy_cost * 100) if buy_cost > 0 else 0
+        weeks = dur * 4.33
+        gm_per_ae_week = (gross_margin / buy_ae / weeks) if buy_ae > 0 and weeks > 0 else 0
+        results.append({
+            "trade_name": tname, "country": tcountry,
+            "buy_class": buy_cls, "sell_class": sell_cls,
+            "buy_price_usd_kg": round(buy_price, 4),
+            "sell_price_usd_kg": round(sell_price, 4),
+            "buy_cost_usd": round(buy_cost, 2),
+            "sell_revenue_usd": round(sell_revenue, 2),
+            "gross_margin_usd": round(gross_margin, 2),
+            "production_cost_usd": round(total_cost, 2),
+            "net_margin_usd": round(net, 2),
+            "roi_gross_pct": round(roi_gross, 1),
+            "roi_net_pct": round(roi_net, 1),
+            "gm_per_ae_week": round(gm_per_ae_week, 2),
+            "duration_months": dur,
+            "weight_gain_kg": gain,
+        })
+    cur.close()
+    conn.close()
+    return results
+
+
+@router.get("/farm-profiles")
+def list_farm_profiles(
+    country: Optional[str] = Query(None, description="Filter by country"),
+):
+    """List farm profiles."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE 1=1"
+    params = []
+    if country:
+        cond += " AND country = %s"
+        params.append(country.upper())
+    try:
+        cur.execute(f"""
+            SELECT id, farm_name, country, region, hectares,
+                   carrying_capacity_ae, default_system, notes
+            FROM farm_profiles {cond}
+            ORDER BY country, farm_name
+        """, params)
+        rows = cur.fetchall()
+    except Exception:
+        rows = []
+    cur.close()
+    conn.close()
+    return [
+        {"id": r[0], "farm_name": r[1], "country": r[2], "region": r[3],
+         "hectares": float(r[4]) if r[4] else None,
+         "carrying_capacity_ae": float(r[5]) if r[5] else None,
+         "default_system": r[6], "notes": r[7]}
+        for r in rows
+    ]
