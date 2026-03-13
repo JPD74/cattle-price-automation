@@ -8,11 +8,10 @@ Prices are per kg live weight in ARS, converted to USD.
 import os
 import re
 import requests
-import psycopg2
+import psycopg
 from datetime import datetime, date, timedelta
 from bs4 import BeautifulSoup
 
-# Category mapping: MAG category prefix -> (English name, weight category)
 CATEGORY_MAP = {
     "NOVILLOS": ("Novillo", "400-500kg"),
     "NOVILLITOS": ("Novillito", "300-400kg"),
@@ -25,7 +24,6 @@ CATEGORY_MAP = {
 }
 
 def get_fx_rate():
-    """Get ARS to USD exchange rate"""
     try:
         r = requests.get("https://api.exchangerate-api.com/v4/latest/USD", timeout=15)
         rate = r.json()["rates"]["ARS"]
@@ -37,7 +35,6 @@ def get_fx_rate():
         return None
 
 def scrape_mag_prices():
-    """Scrape MAG Precios por Categoria page"""
     print("=== Argentina Live Cattle Price Scraper ===")
     today = date.today()
     print(f"Date: {today}")
@@ -47,7 +44,6 @@ def scrape_mag_prices():
         print("ERROR: Could not get FX rate. Aborting.")
         return []
     
-    # Try today first, then yesterday (no auction on weekends/holidays)
     prices = []
     for days_back in range(0, 4):
         check_date = today - timedelta(days=days_back)
@@ -62,7 +58,6 @@ def scrape_mag_prices():
             r.encoding = "utf-8"
             soup = BeautifulSoup(r.text, "html.parser")
             
-            # Find all tables
             tables = soup.find_all("table")
             for table in tables:
                 rows = table.find_all("tr")
@@ -75,7 +70,6 @@ def scrape_mag_prices():
                     if not cat_text or "---" in cat_text:
                         continue
                     
-                    # Try to parse Promedio (average price) column
                     try:
                         promedio_text = cells[3].get_text(strip=True).replace(".", "").replace(",", ".")
                         promedio = float(promedio_text)
@@ -85,7 +79,6 @@ def scrape_mag_prices():
                     if promedio <= 0:
                         continue
                     
-                    # Match category
                     matched_key = None
                     for key in CATEGORY_MAP:
                         if cat_text.startswith(key):
@@ -97,14 +90,12 @@ def scrape_mag_prices():
                     
                     eng_name, weight_cat = CATEGORY_MAP[matched_key]
                     
-                    # Get avg weight from last column (Prom. Kgs)
                     try:
                         avg_kg_text = cells[-1].get_text(strip=True).replace(".", "").replace(",", ".")
                         avg_kg = float(avg_kg_text)
                     except (ValueError, IndexError):
                         avg_kg = None
                     
-                    # Build sub-category from full text
                     sub_cat = cat_text.replace(matched_key, "").strip()
                     if sub_cat:
                         full_name = f"{eng_name} ({sub_cat})"
@@ -123,7 +114,6 @@ def scrape_mag_prices():
                         "price_usd": price_usd,
                         "unit": "per_kg_live",
                         "source": "Mercado Agroganadero",
-                        "avg_weight_kg": avg_kg,
                     })
             
             if prices:
@@ -139,13 +129,12 @@ def scrape_mag_prices():
     return prices
 
 def upload_to_database(prices):
-    """Upload prices to Railway PostgreSQL"""
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         print("ERROR: DATABASE_URL not set")
         return
     
-    conn = psycopg2.connect(db_url)
+    conn = psycopg.connect(db_url)
     cur = conn.cursor()
     
     inserted = 0
