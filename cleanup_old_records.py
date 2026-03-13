@@ -17,6 +17,11 @@ def cleanup():
         cur = conn.cursor()
         print("Connected to Railway PostgreSQL database")
 
+                        # Fix column sizes for Argentina support
+        cur.execute("ALTER TABLE cattle_prices ALTER COLUMN local_currency TYPE varchar(5)")
+        conn.commit()
+        print("Schema updated: local_currency column widened to varchar(5)")
+
         # Count records before cleanup
         cur.execute("SELECT COUNT(*) FROM cattle_prices")
         total_before = cur.fetchone()[0]
