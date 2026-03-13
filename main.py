@@ -11,6 +11,7 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import psycopg
+from intelligence_api import router as intelligence_router
 
 app = FastAPI(
     title="Cattle & Crop Price API",
@@ -24,6 +25,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount intelligence engine router
+app.include_router(intelligence_router)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
