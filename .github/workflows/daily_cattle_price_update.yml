@@ -1,136 +1,87 @@
 name: Daily Cattle Price Data Collection
 
-# Runs daily at 9 AM UTC (covers all target countries during business hours)
 on:
   schedule:
-    - cron: '0 9 * * *'  # Daily at 9 AM UTC
-  workflow_dispatch:  # Allows manual triggering
+    - cron: '0 9 * * *'
+  workflow_dispatch:
 
 jobs:
   collect_cattle_prices:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
+        run: pip install -r requirements.txt
       - name: Cleanup old NULL records
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python cleanup_old_records.py
-
+        run: python cleanup_old_records.py
       - name: Upload Brazil CEPEA cattle prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_brazil_cepea.py
-
+        run: python upload_brazil_cepea.py
       - name: Upload New Zealand cattle prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_newzealand.py
-
+        run: python upload_newzealand.py
       - name: Upload Australian cattle prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_australia.py
-
+        run: python upload_australia.py
       - name: Upload Paraguay cattle prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_paraguay.py
-
+        run: python upload_paraguay.py
       - name: Upload Uruguay cattle prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_uruguay.py
-
+        run: python upload_uruguay.py
       - name: Upload Argentina cattle prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_argentina.py
-
+        run: python upload_argentina.py
       - name: Upload USA cattle prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_usa.py
-
-      - name: Upload crop prices (all countries)
+        run: python upload_usa.py
+      - name: Upload crop prices
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python upload_crops.py
-
-      # === LIVE SCRAPERS ===
-      - name: Live scrape USA (USDA LMR Datamart)
+        run: python upload_crops.py
+              - name: Live scrape USA (USDA)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python scrape_live_usa.py
-
-      - name: Live scrape Brazil (CEPEA/ESALQ)
+        run: python scrape_live_usa.py
+      - name: Live scrape Brazil (CEPEA)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python scrape_live_brazil.py
-
-      - name: Live scrape Australia (MLA Statistics)
+        run: python scrape_live_brazil.py
+      - name: Live scrape Australia (MLA)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python scrape_live_australia.py
-
-      - name: Live scrape NZ/Paraguay/Uruguay
+        run: python scrape_live_australia.py
+      - name: Live scrape NZ/PY/UY
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python scrape_live_nz_py_uy.py
-
-      - name: Live scrape Argentina (Mercado Agroganadero)
+        run: python scrape_live_nz_py_uy.py
+      - name: Live scrape Argentina (MAG)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python scrape_live_argentina.py
-
-
-    # === INTELLIGENCE ENGINE ===
-
-    - name: Update FX rates
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python fx_rates.py
-
-    - name: Seed cost benchmarks
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python seed_cost_benchmarks.py
-
-    - name: Persist trade signals
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      run: |
-        python persist_signals.py
-      - name: Summary
-        run: |
-          echo "=== CATTLE PRICE DATA COLLECTION COMPLETE ==="
-          echo "Static uploads: AU, NZ, BR, PY, UY, AR, US + Crops"
-          echo "Live scrapers: USA (USDA), Brazil (CEPEA), Australia (MLA), NZ/PY/UY, Argentina (MAG)"
-          echo "Database: Railway PostgreSQL"
+        run: python scrape_live_argentina.py
+      - name: Update FX rates
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python fx_rates.py
+      - name: Seed cost benchmarks
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python seed_cost_benchmarks.py
+      - name: Persist trade signals
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python persist_signals.py
