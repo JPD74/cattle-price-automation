@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Live Brazil cattle price scraper - CEPEA/ESALQ Fed Cattle Index
+"""
+Live Brazil cattle price scraper - CEPEA/ESALQ Fed Cattle Index
 Scrapes the CEPEA indicator page for daily fed cattle prices.
 Price is per arroba (15 kg) converted to per kg.
 Source: cepea.org.br/en/indicator/cattle.aspx
 """
 import os
 import re
+import time
 import psycopg
 import requests
 from datetime import datetime, date
@@ -22,17 +24,45 @@ def get_fx_rate():
         return None
 
 def scrape_cepea_cattle():
-    """Scrape CEPEA cattle indicator page"""
-    url = "https://cepea.org.br/en/indicator/cattle.aspx"
+    """Scrape CEPEA cattle indicator page with enhanced headers"""
+    urls = [
+        "https://cepea.org.br/en/indicator/cattle.aspx",
+        "https://www.cepea.esalq.usp.br/en/indicator/cattle.aspx",
+    ]
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
     }
 
-    try:
-        r = requests.get(url, headers=headers, timeout=30)
-        r.raise_for_status()
-    except Exception as e:
-        print(f"Failed to fetch CEPEA page: {e}")
+    r = None
+    for url in urls:
+        try:
+            session = requests.Session()
+            # First do a GET to the main page to get cookies
+            session.get("https://cepea.org.br/en/", headers=headers, timeout=15)
+            time.sleep(1)
+            r = session.get(url, headers=headers, timeout=30)
+            if r.status_code == 200:
+                print(f"  Successfully fetched from {url}")
+                break
+            else:
+                print(f"  {url} returned status {r.status_code}")
+                r = None
+        except Exception as e:
+            print(f"  Failed to fetch {url}: {e}")
+            r = None
+
+    if not r or r.status_code != 200:
+        print(f"Failed to fetch CEPEA page from any URL")
         return []
 
     soup = BeautifulSoup(r.text, "html.parser")
@@ -49,88 +79,111 @@ def scrape_cepea_cattle():
                 break
 
     if not table:
-        print("Could not find CEPEA price table")
-        pattern = r'(\d{2}/\d{2}/\d{4})\s*\s*]*>\s*([\d.,]+)'
-        matches = re.findall(pattern, r.text)
-        for date_str, price_usd in matches:
-            try:
-                dt = datetime.strptime(date_str, "%m/%d/%Y")
-                price_per_arroba_usd = float(price_usd.replace(",", ""))
-                price_per_kg_usd = round(price_per_arroba_usd / 15.0, 4)
-                records.append({
-                    "date": dt.strftime("%Y-%m-%d"),
-                    "price_per_kg_usd": price_per_kg_usd,
-                    "price_per_arroba_usd": price_per_arroba_usd
-                })
-            except:
-                continue
-        return records
+        # Try finding any table with price data
+        for t in soup.find_all("table"):
+            if "US$" in t.get_text() or "R$" in t.get_text():
+                table = t
+                break
+
+    if not table:
+        print("  No price table found on CEPEA page")
+        print(f"  Page title: {soup.title.string if soup.title else 'N/A'}")
+        print(f"  Page length: {len(r.text)} chars")
+        return []
 
     rows = table.find_all("tr")
-    for row in rows:
+    print(f"  Found {len(rows)} table rows")
+
+    for row in rows[1:]:  # Skip header
         cells = row.find_all("td")
-        if len(cells) >= 2:
-            date_text = cells[0].get_text(strip=True)
-            price_text = cells[1].get_text(strip=True)
+        if len(cells) >= 3:
             try:
-                dt = datetime.strptime(date_text, "%m/%d/%Y")
-                price_per_arroba_usd = float(price_text.replace(",", ""))
-                price_per_kg_usd = round(price_per_arroba_usd / 15.0, 4)
+                date_text = cells[0].get_text(strip=True)
+                price_text = cells[1].get_text(strip=True)
+
+                # Parse date (format: MM/DD/YYYY)
+                try:
+                    price_date = datetime.strptime(date_text, "%m/%d/%Y").strftime("%Y-%m-%d")
+                except:
+                    try:
+                        price_date = datetime.strptime(date_text, "%d/%m/%Y").strftime("%Y-%m-%d")
+                    except:
+                        continue
+
+                # Parse price (USD per arroba)
+                price_usd = float(price_text.replace(",", "").replace("$", "").strip())
+
+                # Convert from per arroba (15kg) to per kg
+                price_per_kg_usd = round(price_usd / 15.0, 4)
+
                 records.append({
-                    "date": dt.strftime("%Y-%m-%d"),
-                    "price_per_kg_usd": price_per_kg_usd,
-                    "price_per_arroba_usd": price_per_arroba_usd
+                    "date": price_date,
+                    "price_usd_per_arroba": price_usd,
+                    "price_usd_per_kg": price_per_kg_usd,
                 })
-            except (ValueError, IndexError):
+            except (ValueError, IndexError) as e:
                 continue
 
+    print(f"  Scraped {len(records)} price records from CEPEA")
     return records
 
-def upload_to_db(records):
-    """Upload scraped records to Railway PostgreSQL"""
+def upload_to_database(records):
+    if not records:
+        print("No records scraped - CEPEA may be blocked or page structure changed")
+        return
+
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         print("ERROR: DATABASE_URL not set")
         return
 
     brl_to_usd = get_fx_rate()
+    if not brl_to_usd:
+        brl_to_usd = 0.19  # fallback
 
     try:
-        conn = psycopg.connect(db_url)
+        conn = psycopg.connect(db_url, sslmode="disable")
         cur = conn.cursor()
         uploaded = 0
         skipped = 0
 
-        for r in records:
-            cur.execute("""
-                SELECT 1 FROM cattle_prices
-                WHERE country = 'BR'
-                AND region = 'Sao Paulo'
-                AND livestock_class = 'Fed Cattle'
-                AND timestamp = %s
-                AND data_source = 'CEPEA_LIVE'
-            """, (r["date"],))
+        # Use latest record only
+        latest = records[0]
 
-            if cur.fetchone():
-                skipped += 1
-                continue
+        # CEPEA gives us USD price per arroba from Sao Paulo
+        price_usd_kg = latest["price_usd_per_kg"]
+        price_brl_kg = round(price_usd_kg / brl_to_usd, 2) if brl_to_usd > 0 else 0
 
-            price_brl = None
-            if brl_to_usd and brl_to_usd > 0:
-                price_brl = round(r["price_per_kg_usd"] / brl_to_usd, 4)
+        regions = ["Sao Paulo"]
+        classes = ["Boi Gordo (Fed Cattle)"]
 
-            cur.execute("""
-                INSERT INTO cattle_prices (country, region, livestock_class, weight_category,
-                    price_per_kg_local, price_per_kg_usd, local_currency, data_source, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                "BR", "Sao Paulo", "Fed Cattle", "Standard (per arroba/15kg)",
-                price_brl, r["price_per_kg_usd"], "BRL", "CEPEA_LIVE", r["date"]
-            ))
-            uploaded += 1
+        for region in regions:
+            for livestock_class in classes:
+                cur.execute("""
+                    SELECT 1 FROM cattle_prices
+                    WHERE country = 'BR' AND livestock_class = %s
+                    AND timestamp::date = %s::date
+                    AND data_source = 'CEPEA/ESALQ'
+                """, (livestock_class, latest["date"]))
+
+                if cur.fetchone():
+                    skipped += 1
+                    continue
+
+                cur.execute("""
+                    INSERT INTO cattle_prices
+                    (country, region, livestock_class, weight_category,
+                     price_per_kg_local, price_per_kg_usd, local_currency,
+                     data_source, timestamp)
+                    VALUES ('BR', %s, %s, '450-550kg', %s, %s, 'BRL',
+                            'CEPEA/ESALQ', %s)
+                """, (region, livestock_class, price_brl_kg,
+                       price_usd_kg, latest["date"]))
+                uploaded += 1
+                print(f"  {livestock_class} ({region}): BRL {price_brl_kg}/kg = USD {price_usd_kg}/kg")
 
         conn.commit()
-        print(f"BRAZIL LIVE: {uploaded} uploaded, {skipped} skipped")
+        print(f"BR LIVE: {uploaded} uploaded, {skipped} skipped")
         cur.close()
         conn.close()
     except Exception as e:
@@ -142,10 +195,4 @@ if __name__ == "__main__":
     print("=" * 50)
 
     records = scrape_cepea_cattle()
-    print(f"Scraped {len(records)} price records from CEPEA")
-    if records:
-        for r in records:
-            print(f"  {r['date']}: US${r['price_per_kg_usd']:.4f}/kg")
-        upload_to_db(records)
-    else:
-        print("No records scraped - CEPEA may be blocked or page structure changed")
+    upload_to_database(records)
