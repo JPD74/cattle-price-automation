@@ -2,6 +2,9 @@ name: Run Intelligence Engine Migration
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/run_migration.yml'
 
 jobs:
   migrate:
