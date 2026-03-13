@@ -108,6 +108,26 @@ jobs:
         run: |
           python scrape_live_argentina.py
 
+
+    # === INTELLIGENCE ENGINE ===
+
+    - name: Update FX rates
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        python fx_rates.py
+
+    - name: Seed cost benchmarks
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        python seed_cost_benchmarks.py
+
+    - name: Persist trade signals
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        python persist_signals.py
       - name: Summary
         run: |
           echo "=== CATTLE PRICE DATA COLLECTION COMPLETE ==="
