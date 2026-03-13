@@ -17,11 +17,20 @@ def cleanup():
         cur = conn.cursor()
         print("Connected to Railway PostgreSQL database")
 
-                        # Fix column sizes for Argentina support
-        cur.execute("ALTER TABLE cattle_prices ALTER COLUMN local_currency TYPE varchar(5)")
+                                # Fix all varchar columns that are too small
+        cur.execute("""
+            SELECT column_name, character_maximum_length
+            FROM information_schema.columns
+            WHERE table_name = 'cattle_prices'
+            AND data_type = 'character varying'
+            AND character_maximum_length < 10
+        """)
+        short_cols = cur.fetchall()
+        for col_name, max_len in short_cols:
+            print(f"Widening column {col_name} from varchar({max_len}) to varchar(50)")
+            cur.execute(f"ALTER TABLE cattle_prices ALTER COLUMN {col_name} TYPE varchar(50)")
         conn.commit()
-        print("Schema updated: local_currency column widened to varchar(5)")
-
+        print(f"Schema check complete: fixed {len(short_cols)} columns")
         # Count records before cleanup
         cur.execute("SELECT COUNT(*) FROM cattle_prices")
         total_before = cur.fetchone()[0]
