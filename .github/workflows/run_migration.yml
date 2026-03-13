@@ -17,7 +17,15 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: pip install psycopg2-binary
-      - name: Run migration
+      - name: Run class mappings fix
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python fix_class_mappings.py
+      - name: Run farm profiles migration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python migrate_farm_profiles.py
+      - name: Seed cost benchmarks
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python seed_cost_benchmarks.py
