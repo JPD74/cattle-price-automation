@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Live Argentina cattle price scraper - Mercado Agroganadero (MAG)
-Scrapes daily cattle prices from MAG Precios por Categoria page.
+Scrapes from MAG homepage which has latest remate prices embedded.
 Source: https://www.mercadoagroganadero.com.ar
 Prices are per kg live weight in ARS, converted to USD.
 """
@@ -9,7 +9,7 @@ import os
 import re
 import requests
 import psycopg
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from bs4 import BeautifulSoup
 
 CATEGORY_MAP = {
@@ -34,7 +34,8 @@ def get_fx_rate():
         print(f"FX rate error: {e}")
         return None
 
-def scrape_mag_prices():
+def scrape_mag_homepage():
+    """Scrape MAG homepage for latest remate prices table"""
     print("=== Argentina Live Cattle Price Scraper ===")
     today = date.today()
     print(f"Date: {today}")
@@ -44,102 +45,113 @@ def scrape_mag_prices():
         print("ERROR: Could not get FX rate. Aborting.")
         return []
     
+    url = "https://www.mercadoagroganadero.com.ar/dll/inicio.dll"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    }
+    
+    try:
+        r = requests.get(url, headers=headers, timeout=60)
+        r.encoding = "utf-8"
+        soup = BeautifulSoup(r.text, "html.parser")
+    except Exception as e:
+        print(f"Error fetching MAG homepage: {e}")
+        return []
+    
     prices = []
-    for days_back in range(0, 7):
-        check_date = today - timedelta(days=days_back)
-        date_str = check_date.strftime("%d/%m/%Y")
-        
-        url = "https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000502"
-        form_data = {
-            "datepicker1": date_str,
-            "datepicker2": date_str,
-            "txtFechaInicial": date_str,
-            "txtFechaFinal": date_str,
-        }
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Referer": url,
-        }
-        
-        print(f"Trying date: {date_str}")
-        try:
-            # Try POST first (form submission)
-            r = requests.post(url, data=form_data, headers=headers, timeout=60)
-            if r.status_code != 200:
-                # Fallback to GET with params
-                r = requests.get(url, params=form_data, headers=headers, timeout=60)
-            r.encoding = "utf-8"
-            soup = BeautifulSoup(r.text, "html.parser")
+    
+    # Find all tables on the homepage
+    tables = soup.find_all("table")
+    print(f"Found {len(tables)} tables on homepage")
+    
+    for table in tables:
+        rows = table.find_all("tr")
+        for row in rows:
+            cells = row.find_all("td")
+            if len(cells) < 3:
+                continue
             
-            tables = soup.find_all("table")
-            for table in tables:
-                rows = table.find_all("tr")
-                for row in rows:
-                    cells = row.find_all("td")
-                    if len(cells) < 8:
-                        continue
-                    
-                    cat_text = cells[0].get_text(strip=True).upper()
-                    if not cat_text or "---" in cat_text:
-                        continue
-                    
-                    try:
-                        promedio_text = cells[3].get_text(strip=True).replace(".", "").replace(",", ".")
-                        promedio = float(promedio_text)
-                    except (ValueError, IndexError):
-                        continue
-                    
-                    if promedio <= 0:
-                        continue
-                    
-                    matched_key = None
-                    for key in CATEGORY_MAP:
-                        if cat_text.startswith(key):
-                            matched_key = key
-                            break
-                    
-                    if not matched_key:
-                        continue
-                    
-                    eng_name, weight_cat = CATEGORY_MAP[matched_key]
-                    
-                    try:
-                        avg_kg_text = cells[-1].get_text(strip=True).replace(".", "").replace(",", ".")
-                        avg_kg = float(avg_kg_text)
-                    except (ValueError, IndexError):
-                        avg_kg = None
-                    
-                    sub_cat = cat_text.replace(matched_key, "").strip()
-                    if sub_cat:
-                        full_name = f"{eng_name} ({sub_cat})"
-                    else:
-                        full_name = eng_name
-                    
-                    price_usd = round(promedio * fx, 4)
-                    
+            cat_text = cells[0].get_text(strip=True).upper()
+            if not cat_text:
+                continue
+            
+            # Try to parse min/max price columns
+            try:
+                min_text = cells[1].get_text(strip=True).replace(".", "").replace(",", ".")
+                max_text = cells[2].get_text(strip=True).replace(".", "").replace(",", ".")
+                min_price = float(min_text)
+                max_price = float(max_text)
+                avg_price = (min_price + max_price) / 2.0
+            except (ValueError, IndexError):
+                continue
+            
+            if avg_price <= 0:
+                continue
+            
+            # Match to category
+            matched_key = None
+            for key in CATEGORY_MAP:
+                if cat_text.startswith(key):
+                    matched_key = key
+                    break
+            
+            if not matched_key:
+                continue
+            
+            eng_name, weight_cat = CATEGORY_MAP[matched_key]
+            sub_cat = cat_text.replace(matched_key, "").strip()
+            if sub_cat:
+                full_name = f"{eng_name} ({sub_cat})"
+            else:
+                full_name = eng_name
+            
+            price_usd = round(avg_price * fx, 4)
+            
+            prices.append({
+                "date": today.isoformat(),
+                "country": "Argentina",
+                "livestock_class": full_name,
+                "weight_category": weight_cat,
+                "price_local": round(avg_price, 2),
+                "currency": "ARS",
+                "price_usd": price_usd,
+                "unit": "per_kg_live",
+                "source": "Mercado Agroganadero",
+            })
+    
+    # Also try regex fallback on raw HTML for price patterns
+    if not prices:
+        print("No table data found, trying regex fallback...")
+        html = r.text
+        # Look for patterns like: NOVILLOS...7.700...8.550
+        pattern = r'(NOVILLOS|NOVILLITOS|VAQUILLONAS|TERNEROS|TERNERAS|VACAS|TOROS)[^<]*?([\d.]+)[^<]*?([\d.]+)'
+        matches = re.findall(pattern, html, re.IGNORECASE)
+        for cat, min_p, max_p in matches:
+            try:
+                min_val = float(min_p.replace(".", ""))
+                max_val = float(max_p.replace(".", ""))
+                if min_val < 100 or max_val < 100:
+                    continue
+                avg = (min_val + max_val) / 2.0
+                cat_upper = cat.upper()
+                if cat_upper in CATEGORY_MAP:
+                    eng_name, weight_cat = CATEGORY_MAP[cat_upper]
+                    price_usd = round(avg * fx, 4)
                     prices.append({
-                        "date": check_date.isoformat(),
+                        "date": today.isoformat(),
                         "country": "Argentina",
-                        "livestock_class": full_name,
+                        "livestock_class": eng_name,
                         "weight_category": weight_cat,
-                        "price_local": round(promedio, 2),
+                        "price_local": round(avg, 2),
                         "currency": "ARS",
                         "price_usd": price_usd,
                         "unit": "per_kg_live",
                         "source": "Mercado Agroganadero",
                     })
-            
-            if prices:
-                print(f"Found {len(prices)} price records for {date_str}")
-                break
-            else:
-                print(f"No data for {date_str}, trying previous day...")
-                
-        except Exception as e:
-            print(f"Error fetching {date_str}: {e}")
-            continue
+            except ValueError:
+                continue
     
+    print(f"Found {len(prices)} price records")
     return prices
 
 def upload_to_database(prices):
@@ -178,14 +190,14 @@ def upload_to_database(prices):
     print(f"Uploaded {inserted} Argentina price records")
 
 def main():
-    prices = scrape_mag_prices()
+    prices = scrape_mag_homepage()
     if prices:
         for p in prices:
             print(f"  {p['livestock_class']}: ARS {p['price_local']:,.2f}/kg = USD {p['price_usd']:.4f}/kg")
         upload_to_database(prices)
     else:
         print("WARNING: No prices scraped from Mercado Agroganadero")
-        print("Site may be down or format changed. Skipping upload.")
+        print("Site may be down or no recent remate data available.")
 
 if __name__ == "__main__":
     main()
