@@ -225,3 +225,142 @@ def stage_trade_margin(
     cur.close()
     conn.close()
     return results
+
+
+@router.get("/herd-valuation")
+def herd_valuation(
+    country: str = Query(..., description="Country code"),
+):
+    """Value a herd portfolio using latest prices and AE equivalents."""
+    conn = get_conn()
+    cur = conn.cursor()
+    # Get herd inventory for this country
+    cur.execute("""
+        SELECT h.id, h.portfolio_name, c.canonical_name,
+               h.head_count, h.avg_weight_kg,
+               COALESCE(a.ae_value, c.ae_equivalent, 1.0) AS ae,
+               COALESCE(a.dse_value, 8.0) AS dse
+        FROM herd_inventory h
+        JOIN canonical_livestock_classes c ON c.id = h.canonical_class_id
+        LEFT JOIN animal_unit_equivalents a ON a.canonical_class_id = c.id
+        WHERE h.country = %s
+        ORDER BY h.portfolio_name, c.canonical_name
+    """, (country.upper(),))
+    herd_rows = cur.fetchall()
+    if not herd_rows:
+        cur.close()
+        conn.close()
+        return {"message": "No herd inventory found. POST to /herd-inventory first.", "items": []}
+    results = []
+    total_head = 0
+    total_ae = 0.0
+    total_value = 0.0
+    for h in herd_rows:
+        hid, portfolio, canon_name, head, avg_wt, ae, dse = h
+        # Get latest price for this canonical class in this country
+        cur.execute("""
+            SELECT cp.price_per_kg_usd FROM cattle_prices cp
+            JOIN livestock_class_mapping m
+                ON m.country = cp.country AND m.source_class = cp.livestock_class
+            JOIN canonical_livestock_classes c ON c.id = m.canonical_class_id
+            WHERE cp.country = %s AND c.canonical_name = %s
+              AND cp.weight_category IS NOT NULL
+            ORDER BY cp.timestamp DESC LIMIT 1
+        """, (country.upper(), canon_name))
+        price_row = cur.fetchone()
+        price_usd = float(price_row[0]) if price_row else 0
+        weight = float(avg_wt) if avg_wt else 450
+        head_value = price_usd * weight
+        line_value = head_value * head
+        line_ae = float(ae) * head
+        total_head += head
+        total_ae += line_ae
+        total_value += line_value
+        results.append({
+            "portfolio": portfolio, "class": canon_name,
+            "head": head, "avg_weight_kg": weight,
+            "price_usd_kg": round(price_usd, 4),
+            "value_per_head_usd": round(head_value, 2),
+            "line_value_usd": round(line_value, 2),
+            "ae_per_head": float(ae), "total_ae": round(line_ae, 1),
+        })
+    cur.close()
+    conn.close()
+    return {
+        "country": country.upper(),
+        "total_head": total_head,
+        "total_ae": round(total_ae, 1),
+        "total_value_usd": round(total_value, 2),
+        "items": results,
+    }
+
+
+@router.get("/signal")
+def market_signals(
+    country: Optional[str] = Query(None, description="Filter by country"),
+):
+    """Generate market signals: percentile position + mispricing detection."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE cp.weight_category IS NOT NULL"
+    params = []
+    if country:
+        cond += " AND cp.country = %s"
+        params.append(country.upper())
+    # Get latest prices mapped to canonical classes
+    cur.execute(f"""
+        SELECT DISTINCT ON (cp.country, c.canonical_name)
+            cp.country, c.canonical_name, c.stage,
+            cp.price_per_kg_usd, cp.timestamp::date
+        FROM cattle_prices cp
+        JOIN livestock_class_mapping m
+            ON m.country = cp.country AND m.source_class = cp.livestock_class
+        JOIN canonical_livestock_classes c ON c.id = m.canonical_class_id
+        {cond}
+        ORDER BY cp.country, c.canonical_name, cp.timestamp DESC
+    """, params)
+    latest = cur.fetchall()
+    signals = []
+    for row in latest:
+        ctry, canon, stage, price_usd, pdate = row
+        price_usd = float(price_usd)
+        # Get historical percentile for this country+class
+        cur.execute("""
+            SELECT
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY cp.price_per_kg_usd),
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY cp.price_per_kg_usd),
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY cp.price_per_kg_usd),
+                MIN(cp.price_per_kg_usd), MAX(cp.price_per_kg_usd),
+                COUNT(*)
+            FROM cattle_prices cp
+            JOIN livestock_class_mapping m
+                ON m.country = cp.country AND m.source_class = cp.livestock_class
+            JOIN canonical_livestock_classes c ON c.id = m.canonical_class_id
+            WHERE cp.country = %s AND c.canonical_name = %s
+              AND cp.weight_category IS NOT NULL
+        """, (ctry, canon))
+        hist = cur.fetchone()
+        if hist and hist[5] > 2:
+            p25, p50, p75 = float(hist[0]), float(hist[1]), float(hist[2])
+            hmin, hmax = float(hist[3]), float(hist[4])
+            rng = hmax - hmin if hmax > hmin else 1
+            pct_position = round((price_usd - hmin) / rng * 100, 1)
+            if price_usd < p25:
+                label = "cheap"
+            elif price_usd > p75:
+                label = "expensive"
+            else:
+                label = "fair"
+            signals.append({
+                "country": ctry, "canonical_name": canon,
+                "stage": stage, "current_price_usd": round(price_usd, 4),
+                "date": str(pdate),
+                "percentile_position": pct_position,
+                "signal": label,
+                "p25": round(p25, 4), "p50": round(p50, 4), "p75": round(p75, 4),
+                "historical_min": round(hmin, 4), "historical_max": round(hmax, 4),
+                "data_points": hist[5],
+            })
+    cur.close()
+    conn.close()
+    return signals
