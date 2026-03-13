@@ -10,6 +10,13 @@ import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 
+# Map country codes to currency codes and names
+COUNTRY_MAP = {
+    "NZ": {"currency": "NZD", "name": "New Zealand"},
+    "UY": {"currency": "UYU", "name": "Uruguay"},
+    "PY": {"currency": "PYG", "name": "Paraguay"},
+}
+
 def get_fx_rates():
     rates = {"NZD": 0.60, "PYG": 0.00013, "UYU": 0.024}
     for currency in ["NZD", "PYG", "UYU"]:
@@ -37,7 +44,7 @@ def scrape_nz_prices():
             country = row.get("country", "")
             if "New Zealand" in country or "NZ" in country:
                 records.append({
-                    "country": "New Zealand",
+                    "country": "NZ",
                     "region": row.get("region", "National"),
                     "livestock_class": row.get("category", "Cattle"),
                     "date": row.get("calendar_date", "")[:10],
@@ -74,7 +81,7 @@ def scrape_uruguay_prices():
                                     if es in category.lower():
                                         livestock_class = en
                                         break
-                                records.append({"country": "Uruguay", "region": "National", "livestock_class": livestock_class, "date": datetime.now().strftime("%Y-%m-%d"), "price_usd_per_kg": price, "price_local": None})
+                                records.append({"country": "UY", "region": "National", "livestock_class": livestock_class, "date": datetime.now().strftime("%Y-%m-%d"), "price_usd_per_kg": price, "price_local": None})
                             except:
                                 continue
     except Exception as e:
@@ -99,7 +106,7 @@ def scrape_paraguay_prices():
                             category = cells[0].get_text(strip=True)
                             price_text = cells[-1].get_text(strip=True)
                             price = float(price_text.replace("Gs.", "").replace(".", "").replace(",", ".").strip())
-                            records.append({"country": "Paraguay", "region": "National", "livestock_class": category, "date": datetime.now().strftime("%Y-%m-%d"), "price_usd_per_kg": None, "price_local": price})
+                            records.append({"country": "PY", "region": "National", "livestock_class": category, "date": datetime.now().strftime("%Y-%m-%d"), "price_usd_per_kg": None, "price_local": price})
                         except:
                             continue
     except Exception as e:
@@ -111,43 +118,51 @@ def upload_to_db(all_records, fx_rates):
     if not db_url:
         print("ERROR: DATABASE_URL not set")
         return
+
     currency_map = {
-        "New Zealand": ("NZD", fx_rates.get("NZD", 0.60)),
-        "Uruguay": ("UYU", fx_rates.get("UYU", 0.024)),
-        "Paraguay": ("PYG", fx_rates.get("PYG", 0.00013))
+        "NZ": ("NZD", fx_rates.get("NZD", 0.60)),
+        "UY": ("UYU", fx_rates.get("UYU", 0.024)),
+        "PY": ("PYG", fx_rates.get("PYG", 0.00013))
     }
+
     try:
         conn = psycopg.connect(db_url)
         cur = conn.cursor()
         uploaded = 0
         skipped = 0
+
         for r in all_records:
             country = r["country"]
             currency, fx = currency_map.get(country, ("USD", 1.0))
+
             cur.execute("""
-                SELECT 1 FROM cattle_prices 
-                WHERE country = %s AND livestock_class = %s 
-                AND timestamp = %s AND data_source = %s
-            """, (country, r["livestock_class"], r["date"], f"{country.upper()[:2]}_LIVE"))
+                SELECT 1 FROM cattle_prices
+                WHERE country = %s
+                AND livestock_class = %s
+                AND timestamp = %s
+                AND data_source = %s
+            """, (country, r["livestock_class"], r["date"], f"{country}_LIVE"))
+
             if cur.fetchone():
                 skipped += 1
                 continue
+
             price_usd = r.get("price_usd_per_kg")
             price_local = r.get("price_local")
+
             if price_usd and not price_local and fx > 0:
                 price_local = round(price_usd / fx, 4)
             elif price_local and not price_usd and fx > 0:
                 price_usd = round(price_local * fx, 4)
+
             cur.execute("""
-                INSERT INTO cattle_prices
-                (country, region, livestock_class, weight_category,
-                 price_per_kg_local, price_per_kg_usd, local_currency,
-                 data_source, timestamp)
+                INSERT INTO cattle_prices (country, region, livestock_class, weight_category,
+                    price_per_kg_local, price_per_kg_usd, local_currency, data_source, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (country, r["region"], r["livestock_class"], "Standard",
-                price_local, price_usd, currency,
-                f"{country.upper()[:2]}_LIVE", r["date"]))
+                price_local, price_usd, currency, f"{country}_LIVE", r["date"]))
             uploaded += 1
+
         conn.commit()
         print(f"NZ/PY/UY LIVE: {uploaded} uploaded, {skipped} skipped")
         cur.close()
@@ -159,21 +174,27 @@ if __name__ == "__main__":
     print("=" * 50)
     print("NZ / PARAGUAY / URUGUAY LIVE SCRAPERS")
     print("=" * 50)
+
     fx_rates = get_fx_rates()
     print(f"FX: NZD={fx_rates['NZD']:.4f}, PYG={fx_rates['PYG']:.6f}, UYU={fx_rates['UYU']:.4f}")
+
     all_records = []
+
     print("\n--- New Zealand ---")
     nz = scrape_nz_prices()
     print(f"  {len(nz)} records")
     all_records.extend(nz)
+
     print("\n--- Uruguay ---")
     uy = scrape_uruguay_prices()
     print(f"  {len(uy)} records")
     all_records.extend(uy)
+
     print("\n--- Paraguay ---")
     py_rec = scrape_paraguay_prices()
     print(f"  {len(py_rec)} records")
     all_records.extend(py_rec)
+
     print(f"\nTotal: {len(all_records)} records")
     if all_records:
         upload_to_db(all_records, fx_rates)
