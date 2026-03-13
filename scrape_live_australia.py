@@ -49,7 +49,7 @@ def scrape_mla_cattle():
     from_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     records = []
     aud_to_usd = get_fx_rate()
-    
+
     for ind_id, info in INDICATORS.items():
         print(f"  Fetching indicator {ind_id}: {info['class']}...")
         data = fetch_indicator(ind_id, from_date, to_date)
@@ -68,8 +68,9 @@ def scrape_mla_cattle():
                     "price_per_kg_usd": price_usd_per_kg,
                 })
             except (ValueError, TypeError, KeyError) as e:
-                print(f"    Parse error: {e}")
+                print(f"  Parse error: {e}")
                 continue
+
     return records
 
 def upload_to_db(records):
@@ -77,34 +78,37 @@ def upload_to_db(records):
     if not db_url:
         print("ERROR: DATABASE_URL not set")
         return
+
     try:
         conn = psycopg.connect(db_url)
         cur = conn.cursor()
         uploaded = 0
         skipped = 0
+
         for r in records:
             cur.execute("""
-                SELECT 1 FROM cattle_prices 
-                WHERE country = 'Australia' AND region = 'National'
-                AND livestock_class = %s 
-                AND timestamp = %s AND data_source = 'MLA_LIVE'
+                SELECT 1 FROM cattle_prices
+                WHERE country = 'AU'
+                AND region = 'National'
+                AND livestock_class = %s
+                AND timestamp = %s
+                AND data_source = 'MLA_LIVE'
             """, (r["livestock_class"], r["date"]))
+
             if cur.fetchone():
                 skipped += 1
                 continue
+
             cur.execute("""
-                INSERT INTO cattle_prices
-                (country, region, livestock_class, weight_category,
-                 price_per_kg_local, price_per_kg_usd, local_currency,
-                 data_source, timestamp)
+                INSERT INTO cattle_prices (country, region, livestock_class, weight_category,
+                    price_per_kg_local, price_per_kg_usd, local_currency, data_source, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                "Australia", "National", r["livestock_class"],
-                r["weight_category"],
-                r["price_per_kg_local"], r["price_per_kg_usd"], "AUD",
-                "MLA_LIVE", r["date"]
+                "AU", "National", r["livestock_class"], r["weight_category"],
+                r["price_per_kg_local"], r["price_per_kg_usd"], "AUD", "MLA_LIVE", r["date"]
             ))
             uploaded += 1
+
         conn.commit()
         print(f"AUSTRALIA LIVE: {uploaded} uploaded, {skipped} skipped")
         cur.close()
