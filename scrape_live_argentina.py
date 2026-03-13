@@ -45,16 +45,30 @@ def scrape_mag_prices():
         return []
     
     prices = []
-    for days_back in range(0, 4):
+    for days_back in range(0, 7):
         check_date = today - timedelta(days=days_back)
         date_str = check_date.strftime("%d/%m/%Y")
         
         url = "https://www.mercadoagroganadero.com.ar/dll/hacienda1.dll/haciinfo000502"
-        params = {"txtFechaInicial": date_str, "txtFechaFinal": date_str, "Ession": ""}
+        form_data = {
+            "datepicker1": date_str,
+            "datepicker2": date_str,
+            "txtFechaInicial": date_str,
+            "txtFechaFinal": date_str,
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": url,
+        }
         
         print(f"Trying date: {date_str}")
         try:
-            r = requests.get(url, params=params, timeout=60)
+            # Try POST first (form submission)
+            r = requests.post(url, data=form_data, headers=headers, timeout=60)
+            if r.status_code != 200:
+                # Fallback to GET with params
+                r = requests.get(url, params=form_data, headers=headers, timeout=60)
             r.encoding = "utf-8"
             soup = BeautifulSoup(r.text, "html.parser")
             
