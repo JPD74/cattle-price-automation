@@ -12,7 +12,123 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install psycopg2-binary
-      - name: Run V1 Canonical Class Migration
+      - name: Run V1 Schema + Class Migration
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python migrate_v1_canonical_classes.py
+        run: |
+          python - <<'PYEOF'
+          import os, psycopg2
+
+          conn = psycopg2.connect(os.environ["DATABASE_URL"])
+          conn.autocommit = False
+          cur = conn.cursor()
+
+          print("[1/4] Adding V1 columns to canonical_livestock_classes...")
+          for col, defn in [
+              ("class_id", "VARCHAR(10)"),
+              ("lifecycle_order", "INTEGER"),
+              ("stage_code", "VARCHAR(10)"),
+              ("price_basis", "VARCHAR(20)"),
+              ("unit_type", "VARCHAR(20)"),
+              ("conversion_factor", "DECIMAL(6,4)"),
+              ("default_next_class", "VARCHAR(100)"),
+              ("local_name_br", "VARCHAR(100)"),
+              ("local_name_py", "VARCHAR(100)"),
+              ("local_name_uy", "VARCHAR(100)"),
+              ("local_name_au", "VARCHAR(100)"),
+              ("local_name_nz", "VARCHAR(100)"),
+              ("local_name_us", "VARCHAR(100)"),
+              ("local_name_ar", "VARCHAR(100)"),
+          ]:
+              try:
+                  cur.execute(f"ALTER TABLE canonical_livestock_classes ADD COLUMN IF NOT EXISTS {col} {defn}")
+              except Exception as e:
+                  print(f"  skipping {col}: {e}")
+                  conn.rollback()
+          conn.commit()
+          print("  -> columns added")
+
+          print("[2/4] Upserting V1 canonical classes (CLS01-CLS14)...")
+          classes = [
+              ("CLS01",1,"ST1","Weaner",160,260,"Feeder","Liveweight","kg",1.0,"Bezerro","Ternero","Ternero","Weaner","Weaner","Weaned Calf","Ternero"),
+              ("CLS02",2,"ST2","Grower Backgrounder",250,340,"Feeder Steer","Liveweight","kg",1.0,"Novilho recria","Novillo recria","Novillo recria","Backgrounder","Store Cattle","Backgrounder","Novillo recria"),
+              ("CLS03",3,"ST3","Feeder Steer",320,450,"Finished Steer","Liveweight","kg",1.0,"Novilho magro","Novillo recria","Novillo recria","Feeder Steer","Feeder Steer","Feeder Steer","Novillo recria"),
+              ("CLS04",3,"ST3","Feeder Heifer",320,430,"Finished Heifer","Liveweight","kg",1.0,"Novilha magra","Vaquilla recria","Vaquillona recria","Feeder Heifer","Feeder Heifer","Feeder Heifer","Vaquillona recria"),
+              ("CLS05",4,"ST4","Finished Steer",480,650,"Slaughter","Carcass","kg",0.54,"Boi gordo","Novillo gordo","Novillo gordo","Finished Steer","Prime Steer","Finished Steer","Novillo gordo"),
+              ("CLS06",4,"ST4","Finished Heifer",450,620,"Slaughter","Carcass","kg",0.54,"Novilha gorda","Vaquilla gorda","Vaquillona gorda","Finished Heifer","Prime Heifer","Finished Heifer","Vaquillona gorda"),
+              ("CLS07",7,"ST7","Cull Cow",420,650,"Slaughter","Liveweight","kg",1.0,"Vaca descarte","Vaca descarte","Vaca descarte","Cull Cow","Cull Cow","Cull Cow","Vaca descarte"),
+              ("CLS08",6,"ST6","Breeding Cow",450,650,"Weaner","Head","per head",None,"Vaca de cria","Vaca de cria","Vaca de cria","Breeder Cow","Breeding Cow","Breeding Cow","Vaca de cria"),
+              ("CLS09",5,"ST5","Replacement Heifer",320,450,"Breeding Cow","Head","per head",None,"Novilha reposicao","Vaquilla reposicion","Vaquillona reposicion","Replacement Heifer","Replacement Heifer","Replacement Heifer","Vaquillona reposicion"),
+              ("CLS10",5,"ST5","Pregnant Heifer",380,500,"Breeding Cow","Head","per head",None,"Novilha prenha","Vaquilla prenada","Vaquillona prenada","PTIC Heifer","In-Calf Heifer","Bred Heifer","Vaquillona prenada"),
+              ("CLS11",6,"ST6","Pregnant Cow",480,650,"Weaner","Head","per head",None,"Vaca prenha","Vaca prenada","Vaca prenada","PTIC Cow","In-Calf Cow","Bred Cow","Vaca prenada"),
+              ("CLS12",6,"ST6","Cow Calf Pair",600,800,"Weaner","Head","per head",None,"Vaca com bezerro","Vaca con ternero","Vaca con ternero","Cow Calf Pair","Cow Calf Pair","Cow-Calf Pair","Vaca con ternero"),
+              ("CLS13",6,"ST6","Breeding Bull",700,1100,"Breeding","Head","per head",None,"Touro","Toro","Toro","Breeding Bull","Breeding Bull","Breeding Bull","Toro"),
+              ("CLS14",7,"ST7","Slaughter Bull",700,1100,"Slaughter","Carcass","kg",0.54,"Touro gordo","Toro gordo","Toro gordo","Slaughter Bull","Slaughter Bull","Slaughter Bull","Toro gordo"),
+          ]
+          for c in classes:
+              cid,lo,sc,name,wmin,wmax,nxt,pb,ut,cf,br,py,uy,au,nz,us,ar = c
+              cur.execute("""
+                  INSERT INTO canonical_livestock_classes
+                    (class_id,lifecycle_order,stage_code,canonical_name,weight_range_kg,
+                     price_basis,unit_type,conversion_factor,default_next_class,
+                     local_name_br,local_name_py,local_name_uy,local_name_au,
+                     local_name_nz,local_name_us,local_name_ar)
+                  VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                  ON CONFLICT (canonical_name) DO UPDATE SET
+                    class_id=EXCLUDED.class_id,
+                    lifecycle_order=EXCLUDED.lifecycle_order,
+                    stage_code=EXCLUDED.stage_code,
+                    weight_range_kg=EXCLUDED.weight_range_kg,
+                    price_basis=EXCLUDED.price_basis,
+                    unit_type=EXCLUDED.unit_type,
+                    conversion_factor=EXCLUDED.conversion_factor,
+                    default_next_class=EXCLUDED.default_next_class,
+                    local_name_br=EXCLUDED.local_name_br,
+                    local_name_py=EXCLUDED.local_name_py,
+                    local_name_uy=EXCLUDED.local_name_uy,
+                    local_name_au=EXCLUDED.local_name_au,
+                    local_name_nz=EXCLUDED.local_name_nz,
+                    local_name_us=EXCLUDED.local_name_us,
+                    local_name_ar=EXCLUDED.local_name_ar
+              """, (cid,lo,sc,name,f"{wmin}-{wmax}",pb,ut,cf,nxt,br,py,uy,au,nz,us,ar))
+          conn.commit()
+          print(f"  -> {len(classes)} classes upserted")
+
+          print("[3/4] Adding country display config table...")
+          cur.execute("""
+              CREATE TABLE IF NOT EXISTS country_display_config (
+                  id SERIAL PRIMARY KEY,
+                  country VARCHAR(2) NOT NULL UNIQUE,
+                  currency_code VARCHAR(3) NOT NULL,
+                  currency_symbol VARCHAR(10) NOT NULL,
+                  display_unit VARCHAR(30) NOT NULL,
+                  display_unit_label VARCHAR(50) NOT NULL,
+                  kg_per_display_unit DECIMAL(10,4) NOT NULL,
+                  price_format VARCHAR(20) DEFAULT '%.2f'
+              )
+          """)
+          cur.execute("""
+              INSERT INTO country_display_config
+                (country,currency_code,currency_symbol,display_unit,display_unit_label,kg_per_display_unit)
+              VALUES
+                ('BR','BRL','R$','arroba','R$/@ (15kg)',15.0),
+                ('PY','USD','US$','kg_live','USD/kg live',1.0),
+                ('UY','USD','US$','kg_carcass','USD/kg carc',0.54),
+                ('AU','AUD','A$','kg_live','AUD/kg live',1.0),
+                ('NZ','NZD','NZ$','kg_live','NZD/kg live',1.0),
+                ('US','USD','US$','cwt','USD/cwt',45.359),
+                ('AR','ARS','$','kg_live','ARS/kg live',1.0)
+              ON CONFLICT (country) DO NOTHING
+          """)
+          conn.commit()
+          print("  -> 7 country display configs seeded")
+
+          print("[4/4] Summary:")
+          cur.execute("SELECT COUNT(*) FROM canonical_livestock_classes")
+          print(f"  canonical_livestock_classes: {cur.fetchone()[0]} rows")
+          cur.execute("SELECT COUNT(*) FROM country_display_config")
+          print(f"  country_display_config: {cur.fetchone()[0]} rows")
+          cur.close()
+          conn.close()
+          print("V1 migration complete!")
+          PYEOF
