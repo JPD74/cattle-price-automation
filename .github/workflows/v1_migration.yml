@@ -1,0 +1,18 @@
+name: V1 Database Migration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate_v1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install psycopg2-binary
+      - name: Run V1 Canonical Class Migration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python migrate_v1_canonical_classes.py
