@@ -3,6 +3,9 @@ name: Update API for V1
 on:
   workflow_dispatch:
 
+
+permissions:
+  contents: write
 jobs:
   update_api:
     runs-on: ubuntu-latest
