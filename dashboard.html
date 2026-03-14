@@ -65,6 +65,7 @@ select, input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; 
 <div class="tab" onclick="switchTab('simulator')">Scenario Simulator</div>
 <div class="tab" onclick="switchTab('prices')">Price Data</div>
 <div class="tab" onclick="switchTab('spreads')">Cross-Country</div>
+        <div class="tab" onclick="switchTab('classes')">V1 Classes</div>
 </div>
 <div class="content">
 
@@ -156,6 +157,22 @@ select, input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; 
 </div>
 
 </div><!-- end content -->
+<div id="tab-classes" class="tab-content">
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+    <label style="color:#94a3b8;font-size:13px">Country:</label>
+    <select id="cls-country" onchange="loadV1Classes()">
+      <option value="">All Countries</option>
+      <option value="AU">Australia</option><option value="BR">Brazil</option>
+      <option value="AR">Argentina</option><option value="UY">Uruguay</option>
+      <option value="PY">Paraguay</option><option value="US">USA</option>
+      <option value="NZ">New Zealand</option>
+    </select>
+  </div>
+  <div class="card">
+    <h3>V1 Canonical Classes &mdash; Lifecycle Order</h3>
+    <div id="cls-table"><div class="loading">Loading...</div></div>
+  </div>
+</div>
 <script>
 const API = window.location.origin;
 let charts = {};
@@ -171,6 +188,7 @@ function switchTab(name) {
   if (name==='simulator') loadSimTrades();
   if (name==='prices') loadPrices();
   if (name==='spreads') loadSpreads();
+      if (name==='classes') loadV1Classes();
 }
 
 async function loadPulse() {
@@ -364,6 +382,43 @@ async function loadSpreads() {
     html += '</table>';
     document.getElementById('spread-table').innerHTML = html;
   } catch(e) { console.error('Spreads error:', e); }
+}
+
+
+async function loadV1Classes() {
+  const country = document.getElementById('cls-country').value;
+  let url = API + '/api/intelligence/v1-classes';
+  if (country) url += '?country=' + country;
+  try {
+    const data = await fetch(url).then(r => r.json());
+    if (!data.length) {
+      document.getElementById('cls-table').innerHTML = '<div class="loading">No V1 classes found</div>';
+      return;
+    }
+    // Group by country for display
+    let tbl = '<table><tr><th>Order</th><th>Class ID</th><th>Canonical Name</th><th>Species</th><th>Stage</th><th>Sex</th><th>Country</th><th>Local Name</th><th>Price Basis</th><th>Conv Factor</th><th>AE</th><th>Source</th></tr>';
+    data.forEach(c => {
+      tbl += '<tr>'
+        + '<td>' + (c.lifecycle_order || '-') + '</td>'
+        + '<td>' + (c.class_id || '-') + '</td>'
+        + '<td><strong>' + c.canonical_name + '</strong></td>'
+        + '<td>' + (c.species || '-') + '</td>'
+        + '<td>' + (c.stage || '-') + '</td>'
+        + '<td>' + (c.sex || '-') + '</td>'
+        + '<td>' + c.country + '</td>'
+        + '<td>' + c.local_name + '</td>'
+        + '<td>' + (c.price_basis || '-') + '</td>'
+        + '<td>' + (c.conversion_factor || '-') + '</td>'
+        + '<td>' + (c.ae_equivalent || '-') + '</td>'
+        + '<td>' + (c.data_source || '-') + '</td>'
+        + '</tr>';
+    });
+    tbl += '</table>';
+    document.getElementById('cls-table').innerHTML = tbl;
+  } catch(e) {
+    console.error('V1 Classes error:', e);
+    document.getElementById('cls-table').innerHTML = '<div class="loading">Error loading V1 classes</div>';
+  }
 }
 
 // Initialize
