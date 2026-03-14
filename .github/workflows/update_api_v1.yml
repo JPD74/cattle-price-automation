@@ -12,10 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fix missing comma after a.dse_value
+      - name: Fix column names class_code->class_id and default_weight_kg->conversion_factor
         run: |
-          sed -i 's/a\.dse_value$/a.dse_value,/' intelligence_api.py
-          echo "Fixed comma"
+          sed -i 's/c\.class_code/c.class_id/g' intelligence_api.py
+          sed -i 's/c\.default_weight_kg/c.conversion_factor/g' intelligence_api.py
+          sed -i 's/"class_code"/"class_id"/g' intelligence_api.py
+          sed -i 's/"default_weight_kg"/"conversion_factor"/g' intelligence_api.py
+          echo "Fixed column names"
 
       - name: Verify syntax
         run: python3 -c "compile(open('intelligence_api.py').read(), 'intelligence_api.py', 'exec'); print('Syntax OK')"
@@ -25,4 +28,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add intelligence_api.py
-          git diff --cached --quiet && echo "No changes" || (git commit -m "Fix missing comma in canonical-classes SQL query" && git push)
+          git diff --cached --quiet && echo "No changes" || (git commit -m "Fix column names: class_code->class_id, default_weight_kg->conversion_factor" && git push)
