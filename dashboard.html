@@ -8,7 +8,7 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
-.header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 24px 32px; border-bottom: 1px solid #334155; }
+.header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 24px 32px; border-bottom: 1px solid #334155; position:relative; }
 .header h1 { font-size: 24px; color: #f8fafc; }
 .header p { color: #94a3b8; margin-top: 4px; font-size: 14px; }
 .tabs { display: flex; gap: 4px; padding: 12px 32px; background: #1e293b; border-bottom: 1px solid #334155; flex-wrap: wrap; }
@@ -55,17 +55,22 @@ select, input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; 
 </head>
 <body>
 <div class="header">
-<h1>Livestock Intelligence Dashboard</h1>
+<h1 data-i18n="title">Livestock Intelligence Dashboard</h1>
+<div id="lang-toggle" style="position:absolute;top:20px;right:32px;display:flex;gap:6px;z-index:100">
+  <button onclick="setLang('en')" id="btn-en" style="padding:4px 12px;border-radius:4px;border:1px solid #3b82f6;background:#3b82f6;color:white;cursor:pointer;font-size:12px;font-weight:600">EN</button>
+  <button onclick="setLang('pt')" id="btn-pt" style="padding:4px 12px;border-radius:4px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:12px;font-weight:600">PT</button>
+  <button onclick="setLang('es')" id="btn-es" style="padding:4px 12px;border-radius:4px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:12px;font-weight:600">ES</button>
+</div>
 <p>Real-time cattle price intelligence across 7 countries | Stage-trade margins | Market signals</p>
 </div>
 <div class="tabs">
-<div class="tab active" onclick="switchTab('pulse')">Market Pulse</div>
-<div class="tab" onclick="switchTab('signals')">Trade Signals</div>
-<div class="tab" onclick="switchTab('herd')">Herd Portfolio</div>
-<div class="tab" onclick="switchTab('simulator')">Scenario Simulator</div>
-<div class="tab" onclick="switchTab('prices')">Price Data</div>
-<div class="tab" onclick="switchTab('spreads')">Cross-Country</div>
-        <div class="tab" onclick="switchTab('classes')">V1 Classes</div>
+<div class="tab active" onclick="switchTab('pulse')" data-i18n="tab_pulse">Market Pulse</div>
+<div class="tab" onclick="switchTab('signals')" data-i18n="tab_signals">Trade Signals</div>
+<div class="tab" onclick="switchTab('herd')" data-i18n="tab_herd">Herd Portfolio</div>
+<div class="tab" onclick="switchTab('simulator')" data-i18n="tab_simulator">Scenario Simulator</div>
+<div class="tab" onclick="switchTab('prices')" data-i18n="tab_prices">Price Data</div>
+<div class="tab" onclick="switchTab('spreads')" data-i18n="tab_spreads">Cross-Country</div>
+        <div class="tab" onclick="switchTab('classes')" data-i18n="tab_classes">V1 Classes</div>
 </div>
 <div class="content">
 
@@ -183,6 +188,7 @@ function switchTab(name) {
   document.getElementById('tab-'+name).classList.add('active');
   event.target.classList.add('active');
   if (name==='pulse') loadPulse();
+  setLang(currentLang);
   if (name==='signals') loadSignals();
   if (name==='herd') loadHerd();
   if (name==='simulator') loadSimTrades();
@@ -419,6 +425,133 @@ async function loadV1Classes() {
     console.error('V1 Classes error:', e);
     document.getElementById('cls-table').innerHTML = '<div class="loading">Error loading V1 classes</div>';
   }
+}
+
+
+const TRANSLATIONS = {
+  en: {
+    title: "Livestock Intelligence Dashboard",
+    subtitle: "Real-time cattle price intelligence across 7 countries | Stage-trade margins | Market signals",
+    tab_pulse: "Market Pulse", tab_signals: "Trade Signals", tab_herd: "Herd Portfolio",
+    tab_simulator: "Scenario Simulator", tab_prices: "Price Data",
+    tab_spreads: "Cross-Country", tab_classes: "V1 Classes",
+    country_label: "Country:", trade_label: "Trade", head_label: "Head Count",
+    weight_label: "Entry Weight (kg)", run_btn: "Run Simulation",
+    all_countries: "All Countries", loading: "Loading...",
+    no_data: "No data for this trade",
+    h_benchmark: "Benchmark Prices by Country (USD/kg)",
+    h_latest: "Latest Prices by Country",
+    h_signals: "NET MARGIN BY STAGE TRADE",
+    h_simulator: "Stage Trade Scenario Simulator",
+    h_sim_sub: "Adjust parameters to model trade outcomes",
+    h_v1: "V1 Canonical Classes — Lifecycle Order",
+    h_spreads: "Cross-Country Price Spread (USD/kg)",
+    h_spread_detail: "Spread Detail",
+    col_order: "Order", col_classid: "Class ID", col_canonical: "Canonical Name",
+    col_species: "Species", col_stage: "Stage", col_sex: "Sex",
+    col_country: "Country", col_localname: "Local Name", col_pricebasis: "Price Basis",
+    col_conv: "Conv Factor", col_ae: "AE", col_source: "Source",
+    total_invest: "Total Investment", total_rev: "Total Revenue",
+    gross_margin: "Gross Margin", net_margin: "Net Margin (est)",
+    trade_params: "Trade Parameters"
+  },
+  pt: {
+    title: "Painel de Inteligência Pecuária",
+    subtitle: "Inteligência de preços de gado em tempo real em 7 países | Margens por fase | Sinais de mercado",
+    tab_pulse: "Pulso do Mercado", tab_signals: "Sinais de Negócio", tab_herd: "Portfólio do Rebanho",
+    tab_simulator: "Simulador de Cenários", tab_prices: "Preços",
+    tab_spreads: "Comparação Internacional", tab_classes: "Classes V1",
+    country_label: "País:", trade_label: "Negócio", head_label: "Número de Cabeças",
+    weight_label: "Peso de Entrada (kg)", run_btn: "Executar Simulação",
+    all_countries: "Todos os Países", loading: "Carregando...",
+    no_data: "Sem dados para esta operação",
+    h_benchmark: "Preços de Referência por País (USD/kg)",
+    h_latest: "Últimos Preços por País",
+    h_signals: "MARGEM LÍQUIDA POR FASE DE COMÉRCIO",
+    h_simulator: "Simulador de Fase de Comércio",
+    h_sim_sub: "Ajuste os parâmetros para modelar resultados",
+    h_v1: "Classes Canônicas V1 — Ordem do Ciclo de Vida",
+    h_spreads: "Spread de Preços Internacional (USD/kg)",
+    h_spread_detail: "Detalhe do Spread",
+    col_order: "Ordem", col_classid: "ID da Classe", col_canonical: "Nome Canônico",
+    col_species: "Espécie", col_stage: "Fase", col_sex: "Sexo",
+    col_country: "País", col_localname: "Nome Local", col_pricebasis: "Base de Preço",
+    col_conv: "Fator Conv.", col_ae: "UA", col_source: "Fonte",
+    total_invest: "Investimento Total", total_rev: "Receita Total",
+    gross_margin: "Margem Bruta", net_margin: "Margem Líquida (est.)",
+    trade_params: "Parâmetros da Operação"
+  },
+  es: {
+    title: "Panel de Inteligencia Ganadera",
+    subtitle: "Inteligencia de precios de ganado en tiempo real en 7 países | Márgenes por etapa | Señales de mercado",
+    tab_pulse: "Pulso del Mercado", tab_signals: "Señales de Negocio", tab_herd: "Portafolio del Rodeo",
+    tab_simulator: "Simulador de Escenarios", tab_prices: "Precios",
+    tab_spreads: "Comparación Internacional", tab_classes: "Clases V1",
+    country_label: "País:", trade_label: "Operación", head_label: "Número de Cabezas",
+    weight_label: "Peso de Entrada (kg)", run_btn: "Ejecutar Simulación",
+    all_countries: "Todos los Países", loading: "Cargando...",
+    no_data: "Sin datos para esta operación",
+    h_benchmark: "Precios de Referencia por País (USD/kg)",
+    h_latest: "Últimos Precios por País",
+    h_signals: "MARGEN NETO POR ETAPA DE COMERCIO",
+    h_simulator: "Simulador de Etapa de Comercio",
+    h_sim_sub: "Ajuste los parámetros para modelar resultados",
+    h_v1: "Clases Canónicas V1 — Orden del Ciclo de Vida",
+    h_spreads: "Spread de Precios Internacional (USD/kg)",
+    h_spread_detail: "Detalle del Spread",
+    col_order: "Orden", col_classid: "ID de Clase", col_canonical: "Nombre Canónico",
+    col_species: "Especie", col_stage: "Etapa", col_sex: "Sexo",
+    col_country: "País", col_localname: "Nombre Local", col_pricebasis: "Base de Precio",
+    col_conv: "Factor Conv.", col_ae: "UA", col_source: "Fuente",
+    total_invest: "Inversión Total", total_rev: "Ingreso Total",
+    gross_margin: "Margen Bruto", net_margin: "Margen Neto (est.)",
+    trade_params: "Parámetros de la Operación"
+  }
+};
+
+let currentLang = localStorage.getItem('lang') || 'en';
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('lang', lang);
+  applyTranslations();
+  // Update toggle button styles
+  ['en','pt','es'].forEach(l => {
+    const btn = document.getElementById('btn-'+l);
+    if (!btn) return;
+    if (l === lang) {
+      btn.style.background = '#3b82f6';
+      btn.style.borderColor = '#3b82f6';
+      btn.style.color = 'white';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.borderColor = '#334155';
+      btn.style.color = '#94a3b8';
+    }
+  });
+}
+
+function t(key) {
+  const tr = TRANSLATIONS[currentLang] || TRANSLATIONS['en'];
+  return tr[key] || TRANSLATIONS['en'][key] || key;
+}
+
+function applyTranslations() {
+  const tr = TRANSLATIONS[currentLang] || TRANSLATIONS['en'];
+  // Translate all data-i18n elements
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (tr[key]) el.textContent = tr[key];
+  });
+  // Subtitle
+  const sub = document.querySelector('.header p');
+  if (sub) sub.textContent = tr.subtitle || sub.textContent;
+  // Run simulation button
+  const runBtn = document.querySelector('.btn[onclick="runSimulation()"]');
+  if (runBtn) runBtn.textContent = tr.run_btn || runBtn.textContent;
+  // Simulator subtitle
+  const simSub = document.querySelector('#tab-simulator .card ~ * p, #tab-simulator p');
+  if (simSub) simSub.textContent = tr.h_sim_sub || simSub.textContent;
 }
 
 // Initialize
