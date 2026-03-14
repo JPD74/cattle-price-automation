@@ -8,72 +8,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Update intelligence_api.py with V1 fields
+
+      - name: Update canonical-classes query with V1 fields
         run: |
-          python3 - <<'PYEOF'
-          import re
+          sed -i 's/ORDER BY c.stage, c.canonical_name/ORDER BY c.lifecycle_order NULLS LAST, c.canonical_name/' intelligence_api.py
+          sed -i '/a.dse_value$/a\               c.class_code, c.lifecycle_order, c.stage_code,\n               c.price_basis, c.default_weight_kg' intelligence_api.py
+          sed -i '/"dse": float(r\[9\]) if r\[9\] else None}/s/}$/,\n         "class_code": r[10], "lifecycle_order": r[11],\n         "stage_code": r[12], "price_basis": r[13],\n         "default_weight_kg": float(r[14]) if r[14] else None}/' intelligence_api.py
 
-          with open("intelligence_api.py", "r") as f:
-              content = f.read()
-
-          # 1. Update canonical-classes endpoint to include V1 fields
-          old_query = '''    cur.execute("""
-        SELECT c.id, c.canonical_name, c.species, c.stage, c.sex,
-               c.weight_range_kg, c.description, c.ae_equivalent,
-               COALESCE(a.ae_value, c.ae_equivalent) AS ae,
-               a.dse_value
-        FROM canonical_livestock_classes c
-        LEFT JOIN animal_unit_equivalents a ON a.canonical_class_id = c.id
-        ORDER BY c.stage, c.canonical_name
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return [
-        {"id": r[0], "canonical_name": r[1], "species": r[2],
-         "stage": r[3], "sex": r[4], "weight_range_kg": r[5],
-         "description": r[6], "ae_equivalent": float(r[7]) if r[7] else None,
-         "ae": float(r[8]) if r[8] else None,
-         "dse": float(r[9]) if r[9] else None}
-        for r in rows
-    ]'''
-
-          new_query = '''    cur.execute("""
-        SELECT c.id, c.canonical_name, c.species, c.stage, c.sex,
-               c.weight_range_kg, c.description, c.ae_equivalent,
-               COALESCE(a.ae_value, c.ae_equivalent) AS ae,
-               a.dse_value,
-               c.class_code, c.lifecycle_order, c.stage_code,
-               c.price_basis, c.default_weight_kg
-        FROM canonical_livestock_classes c
-        LEFT JOIN animal_unit_equivalents a ON a.canonical_class_id = c.id
-        ORDER BY c.lifecycle_order NULLS LAST, c.canonical_name
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return [
-        {"id": r[0], "canonical_name": r[1], "species": r[2],
-         "stage": r[3], "sex": r[4], "weight_range_kg": r[5],
-         "description": r[6], "ae_equivalent": float(r[7]) if r[7] else None,
-         "ae": float(r[8]) if r[8] else None,
-         "dse": float(r[9]) if r[9] else None,
-         "class_code": r[10], "lifecycle_order": r[11],
-         "stage_code": r[12], "price_basis": r[13],
-         "default_weight_kg": float(r[14]) if r[14] else None}
-        for r in rows
-    ]'''
-
-          content = content.replace(old_query, new_query)
-
-          # 2. Add display-config and v1-classes endpoints before the last function
-          new_endpoints = '''
+      - name: Add display-config endpoint
+        run: |
+          cat >> intelligence_api.py << 'ENDPOINT1'
 
           @router.get("/display-config")
           def list_display_config(
               country: Optional[str] = Query(None, description="Filter by country code"),
           ):
-              """List country display configuration (currency, units)."""
+              """List country display configuration."""
               conn = get_conn()
               cur = conn.cursor()
               cond = "WHERE 1=1"
@@ -96,12 +46,17 @@ jobs:
                    "kg_per_display_unit": float(r[5]) if r[5] else None}
                   for r in rows
               ]
+          ENDPOINT1
+
+      - name: Add v1-classes endpoint
+        run: |
+          cat >> intelligence_api.py << 'ENDPOINT2'
 
           @router.get("/v1-classes")
           def v1_classes(
               country: Optional[str] = Query(None, description="Filter by country code"),
           ):
-              """V1 endpoint: canonical classes with local names and display config."""
+              """V1 canonical classes with local names and display config."""
               conn = get_conn()
               cur = conn.cursor()
               cond = "WHERE 1=1"
@@ -137,30 +92,13 @@ jobs:
                    "kg_per_display_unit": float(r[17]) if r[17] else None}
                   for r in rows
               ]
-          '''
+          ENDPOINT2
 
-          # Fix indentation - remove leading spaces from new_endpoints
-          import textwrap
-          new_endpoints = textwrap.dedent(new_endpoints)
-
-          # Add before the last @router definition (farm-profiles)
-          insert_point = content.rfind('@router.get("/farm-profiles")')
-          if insert_point > 0:
-              content = content[:insert_point] + new_endpoints + "\n" + content[insert_point:]
-              print("-> Inserted display-config and v1-classes endpoints")
-          else:
-              # Append at end
-              content += new_endpoints
-              print("-> Appended display-config and v1-classes endpoints at end")
-
-          if "lifecycle_order" in content and "display-config" in content:
-              with open("intelligence_api.py", "w") as f:
-                  f.write(content)
-              print("-> intelligence_api.py updated successfully")
-          else:
-              print("ERROR: Update verification failed")
-              exit(1)
-          PYEOF
+      - name: Verify changes
+        run: |
+          grep -c "lifecycle_order" intelligence_api.py
+          grep -c "display-config" intelligence_api.py
+          grep -c "v1-classes" intelligence_api.py
 
       - name: Commit changes
         run: |
