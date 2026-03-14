@@ -15,8 +15,8 @@ jobs:
       - name: Write V1 dashboard
         run: python3 write_dashboard.py
 
-        - name: Inject i18n language toggle
-                    run: python3 inject_i18n.py
+      - name: Inject i18n language toggle
+        run: python3 inject_i18n.py
 
       - name: Commit
         run: |
