@@ -25,7 +25,7 @@ def list_canonical_classes():
         SELECT c.id, c.canonical_name, c.species, c.stage, c.sex,
                c.weight_range_kg, c.description, c.ae_equivalent,
                COALESCE(a.ae_value, c.ae_equivalent) AS ae,
-               a.dse_value
+               a.dse_value,
                c.class_code, c.lifecycle_order, c.stage_code,
                c.price_basis, c.default_weight_kg
         FROM canonical_livestock_classes c
