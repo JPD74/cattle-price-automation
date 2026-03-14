@@ -26,9 +26,11 @@ def list_canonical_classes():
                c.weight_range_kg, c.description, c.ae_equivalent,
                COALESCE(a.ae_value, c.ae_equivalent) AS ae,
                a.dse_value
+               c.class_code, c.lifecycle_order, c.stage_code,
+               c.price_basis, c.default_weight_kg
         FROM canonical_livestock_classes c
         LEFT JOIN animal_unit_equivalents a ON a.canonical_class_id = c.id
-        ORDER BY c.stage, c.canonical_name
+        ORDER BY c.lifecycle_order NULLS LAST, c.canonical_name
     """)
     rows = cur.fetchall()
     cur.close()
@@ -38,7 +40,10 @@ def list_canonical_classes():
          "stage": r[3], "sex": r[4], "weight_range_kg": r[5],
          "description": r[6], "ae_equivalent": float(r[7]) if r[7] else None,
          "ae": float(r[8]) if r[8] else None,
-         "dse": float(r[9]) if r[9] else None}
+         "dse": float(r[9]) if r[9] else None,
+         "class_code": r[10], "lifecycle_order": r[11],
+         "stage_code": r[12], "price_basis": r[13],
+         "default_weight_kg": float(r[14]) if r[14] else None}
         for r in rows
     ]
 
@@ -550,5 +555,74 @@ def list_farm_profiles(
          "hectares": float(r[4]) if r[4] else None,
          "carrying_capacity_ae": float(r[5]) if r[5] else None,
          "default_system": r[6], "notes": r[7]}
+        for r in rows
+    ]
+
+@router.get("/display-config")
+def list_display_config(
+    country: Optional[str] = Query(None, description="Filter by country code"),
+):
+    """List country display configuration."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE 1=1"
+    params = []
+    if country:
+        cond += " AND country = %s"
+        params.append(country.upper())
+    cur.execute(f"""
+        SELECT country, currency_code, currency_symbol, display_unit,
+               display_unit_label, kg_per_display_unit
+        FROM country_display_config {cond}
+        ORDER BY country
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {"country": r[0], "currency_code": r[1], "currency_symbol": r[2],
+         "display_unit": r[3], "display_unit_label": r[4],
+         "kg_per_display_unit": float(r[5]) if r[5] else None}
+        for r in rows
+    ]
+
+@router.get("/v1-classes")
+def v1_classes(
+    country: Optional[str] = Query(None, description="Filter by country code"),
+):
+    """V1 canonical classes with local names and display config."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cond = "WHERE 1=1"
+    params = []
+    if country:
+        cond += " AND m.country = %s"
+        params.append(country.upper())
+    cur.execute(f"""
+        SELECT c.class_code, c.canonical_name, c.species, c.stage, c.sex,
+               c.lifecycle_order, c.stage_code, c.price_basis,
+               c.default_weight_kg, c.ae_equivalent,
+               m.country, m.source_class AS local_name, m.data_source,
+               dc.currency_code, dc.currency_symbol, dc.display_unit,
+               dc.display_unit_label, dc.kg_per_display_unit
+        FROM canonical_livestock_classes c
+        JOIN livestock_class_mapping m ON m.canonical_class_id = c.id
+        LEFT JOIN country_display_config dc ON dc.country = m.country
+        {cond}
+        ORDER BY m.country, c.lifecycle_order NULLS LAST, c.canonical_name
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {"class_code": r[0], "canonical_name": r[1], "species": r[2],
+         "stage": r[3], "sex": r[4], "lifecycle_order": r[5],
+         "stage_code": r[6], "price_basis": r[7],
+         "default_weight_kg": float(r[8]) if r[8] else None,
+         "ae_equivalent": float(r[9]) if r[9] else None,
+         "country": r[10], "local_name": r[11], "data_source": r[12],
+         "currency_code": r[13], "currency_symbol": r[14],
+         "display_unit": r[15], "display_unit_label": r[16],
+         "kg_per_display_unit": float(r[17]) if r[17] else None}
         for r in rows
     ]
