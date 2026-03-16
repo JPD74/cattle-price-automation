@@ -168,6 +168,9 @@ jobs:
           print('All fixes applied to dashboard.html')
           "
 
+      - name: Fix tab mappings
+        run: python3 fix_dashboard_tabs.py
+
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
