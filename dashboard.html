@@ -65,6 +65,7 @@ select, input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; 
 </div>
 <div class="tabs">
 <div class="tab active" onclick="switchTab('pulse')" data-i18n="tab_pulse">Market Pulse</div>
+<div class="tab" onclick="switchTab('signals')" data-i18n="tab_bands">Historical Bands</div>
 <div class="tab" onclick="switchTab('signals')" data-i18n="tab_signals">Trade Signals</div>
 <div class="tab" onclick="switchTab('herd')" data-i18n="tab_herd">Herd Portfolio</div>
 <div class="tab" onclick="switchTab('simulator')" data-i18n="tab_simulator">Scenario Simulator</div>
@@ -82,6 +83,28 @@ select, input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; 
 </div>
 
 <!-- TRADE SIGNALS TAB -->
+<div id="tab-bands" class="tab-content">
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+  <label style="color:#94a3b8;font-size:13px" data-i18n="country_label">Country:</label>
+  <select id="bands-country" onchange="loadBands()">
+    <option value="AU">Australia - EYCI</option>
+    <option value="BR">Brazil - Boi Gordo</option>
+    <option value="UY">Uruguay - Novillo</option>
+    <option value="PY">Paraguay - Novillo</option>
+    <option value="NZ">New Zealand - Prime Steer</option>
+    <option value="US">USA - Fed Cattle</option>
+    <option value="AR">Argentina - Novillo</option>
+  </select>
+</div>
+<div class="chart-box">
+  <h3 id="bands-title">Historical Price Bands (USD/kg)</h3>
+  <canvas id="bandsChart" height="400"></canvas>
+</div>
+<div class="card">
+  <h3 data-i18n="h_bands_detail">Price Band Statistics</h3>
+  <div id="bands-stats"><div class="loading">Select a country to view bands</div></div>
+</div>
+</div>
 <div id="tab-signals" class="tab-content">
 <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center">
 <label style="color:#94a3b8;font-size:13px">Country:</label>
@@ -150,7 +173,7 @@ select, input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; 
 <option value="AU">AU</option><option value="BR">BR</option><option value="AR">AR</option>
 <option value="UY">UY</option><option value="PY">PY</option><option value="US">US</option><option value="NZ">NZ</option>
 </select>
-<input id="price-class" placeholder="Livestock class filter..." onchange="loadPrices()">
+<select id="price-class" onchange="loadPrices()"><option value="">All Classes</option><option value="Weaner Steer">Weaner Steer</option><option value="Weaner Heifer">Weaner Heifer</option><option value="Yearling Steer">Yearling Steer</option><option value="Yearling Heifer">Yearling Heifer</option><option value="Feeder Steer">Feeder Steer</option><option value="Feeder Heifer">Feeder Heifer</option><option value="Finished Steer">Finished Steer</option><option value="Finished Heifer">Finished Heifer</option><option value="Cull Cow">Cull Cow</option><option value="Bull">Bull</option><option value="PTIC Heifer">PTIC Heifer</option><option value="Heavy Steer">Heavy Steer</option><option value="Boi Gordo">Boi Gordo</option><option value="Novilho">Novilho</option><option value="Novillo">Novillo</option><option value="Vaca">Vaca</option><option value="Ternero">Ternero</option></select>
 </div>
 <div class="card"><div id="price-table"><div class="loading">Loading prices...</div></div></div>
 </div>
@@ -189,7 +212,8 @@ function switchTab(name) {
   event.target.classList.add('active');
   if (name==='pulse') loadPulse();
   setLang(currentLang);
-  if (name==='signals') loadSignals();
+  if (name==='bands') loadBands();
+    if (name==='signals') loadSignals();
   if (name==='herd') loadHerd();
   if (name==='simulator') loadSimTrades();
   if (name==='prices') loadPrices();
@@ -219,7 +243,7 @@ async function loadPulse() {
       options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{color:'#64748b'},grid:{color:'#1e293b'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
     });
     // Latest prices table
-    let html = '<table><tr><th>Country</th><th>Class</th><th>Region</th><th>USD/kg</th><th>Local/kg</th><th>Date</th></tr>';
+    let html = '<table><tr><th>'+t('col_country')+'</th><th>'+t('col_canonical')+'</th><th>Region</th><th>USD/kg</th><th>Local/kg</th><th>Date</th></tr>';
     latest.slice(0,50).forEach(p => {
       html += `<tr><td>${p.country}</td><td>${p.livestock_class}</td><td>${p.region||'-'}</td><td>$${p.price_per_kg_usd.toFixed(2)}</td><td>${p.price_per_kg_local.toFixed(2)} ${p.local_currency}</td><td>${p.date}</td></tr>`;
     });
@@ -280,7 +304,7 @@ async function loadHerd() {
         <div class="card"><h3>Total AE</h3><div class="value">${data.total_ae}</div></div>
         <div class="card"><h3>Portfolio Value</h3><div class="value">$${data.total_value_usd.toLocaleString()}</div><div class="sub">USD</div></div>
       `;
-      let html = '<table><tr><th>Class</th><th>Head</th><th>Avg Wt</th><th>Price/kg</th><th>Value/Head</th><th>Line Value</th><th>AE</th></tr>';
+      let html = '<table><tr><th>'+t('col_canonical')+'</th><th>Head</th><th>Avg Wt</th><th>Price/kg</th><th>Value/Head</th><th>Line Value</th><th>'+t('col_ae')+'</th></tr>';
       data.items.forEach(i => {
         html += `<tr><td>${i.class}</td><td>${i.head}</td><td>${i.avg_weight_kg}kg</td><td>$${i.price_usd_kg.toFixed(2)}</td><td>$${i.value_per_head_usd.toFixed(0)}</td><td>$${i.line_value_usd.toLocaleString()}</td><td>${i.total_ae}</td></tr>`;
       });
@@ -348,7 +372,7 @@ async function loadPrices() {
   if (cls) url += '&livestock_class='+encodeURIComponent(cls);
   try {
     const data = await fetch(url).then(r=>r.json());
-    let html = '<table><tr><th>Date</th><th>Country</th><th>Region</th><th>Class</th><th>Weight</th><th>USD/kg</th><th>Local/kg</th><th>Source</th></tr>';
+    let html = '<table><tr><th>Date</th><th>'+t('col_country')+'</th><th>Region</th><th>'+t('col_canonical')+'</th><th>Weight</th><th>USD/kg</th><th>Local/kg</th><th>'+t('col_source')+'</th></tr>';
     data.forEach(p => {
       html += `<tr><td>${p.date}</td><td>${p.country}</td><td>${p.region||'-'}</td><td>${p.livestock_class}</td><td>${p.weight_category||'-'}</td><td>$${p.price_per_kg_usd.toFixed(2)}</td><td>${p.price_per_kg_local.toFixed(2)} ${p.local_currency}</td><td>${p.data_source}</td></tr>`;
     });
@@ -381,7 +405,7 @@ async function loadSpreads() {
       options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{y:{ticks:{color:'#64748b'},grid:{color:'#1e293b'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
     });
     // Table
-    let html = '<table><tr><th>Country</th><th>Source Class</th><th>Canonical</th><th>Stage</th><th>USD/kg</th><th>Local/kg</th><th>Currency</th><th>Date</th></tr>';
+    let html = '<table><tr><th>'+t('col_country')+'</th><th>'+t('col_source')+'</th><th>'+t('col_canonical')+'</th><th>'+t('col_stage')+'</th><th>USD/kg</th><th>Local/kg</th><th>Currency</th><th>Date</th></tr>';
     data.forEach(d => {
       html += `<tr><td>${d.country}</td><td>${d.source_class}</td><td>${d.canonical_name}</td><td>${d.stage}</td><td>$${d.price_usd_kg.toFixed(2)}</td><td>${d.price_local_kg.toFixed(2)}</td><td>${d.currency}</td><td>${d.date}</td></tr>`;
     });
@@ -402,7 +426,7 @@ async function loadV1Classes() {
       return;
     }
     // Group by country for display
-    let tbl = '<table><tr><th>Order</th><th>Class ID</th><th>Canonical Name</th><th>Species</th><th>Stage</th><th>Sex</th><th>Country</th><th>Local Name</th><th>Price Basis</th><th>Conv Factor</th><th>AE</th><th>Source</th></tr>';
+    let tbl = '<table><tr><th>'+t('col_order')+'</th><th>'+t('col_classid')+'</th><th>'+t('col_canonical')+'</th><th>'+t('col_species')+'</th><th>'+t('col_stage')+'</th><th>'+t('col_sex')+'</th><th>'+t('col_country')+'</th><th>'+t('col_localname')+'</th><th>'+t('col_pricebasis')+'</th><th>'+t('col_conv')+'</th><th>'+t('col_ae')+'</th><th>'+t('col_source')+'</th></tr>';
     data.forEach(c => {
       tbl += '<tr>'
         + '<td>' + (c.lifecycle_order || '-') + '</td>'
@@ -434,7 +458,7 @@ const TRANSLATIONS = {
     subtitle: "Real-time cattle price intelligence across 7 countries | Stage-trade margins | Market signals",
     tab_pulse: "Market Pulse", tab_signals: "Trade Signals", tab_herd: "Herd Portfolio",
     tab_simulator: "Scenario Simulator", tab_prices: "Price Data",
-    tab_spreads: "Cross-Country", tab_classes: "V1 Classes",
+    tab_spreads: "Cross-Country", tab_classes: "V1 Classes", tab_bands: "Historical Bands", h_bands_detail: "Price Band Statistics",
     country_label: "Country:", trade_label: "Trade", head_label: "Head Count",
     weight_label: "Entry Weight (kg)", run_btn: "Run Simulation",
     all_countries: "All Countries", loading: "Loading...",
@@ -460,7 +484,7 @@ const TRANSLATIONS = {
     subtitle: "Inteligência de preços de gado em tempo real em 7 países | Margens por fase | Sinais de mercado",
     tab_pulse: "Pulso do Mercado", tab_signals: "Sinais de Negócio", tab_herd: "Portfólio do Rebanho",
     tab_simulator: "Simulador de Cenários", tab_prices: "Preços",
-    tab_spreads: "Comparação Internacional", tab_classes: "Classes V1",
+    tab_spreads: "Comparação Internacional", tab_classes: "Classes V1", tab_bands: "Bandas Históricas", h_bands_detail: "Estatísticas de Faixa de Preço",
     country_label: "País:", trade_label: "Negócio", head_label: "Número de Cabeças",
     weight_label: "Peso de Entrada (kg)", run_btn: "Executar Simulação",
     all_countries: "Todos os Países", loading: "Carregando...",
@@ -486,7 +510,7 @@ const TRANSLATIONS = {
     subtitle: "Inteligencia de precios de ganado en tiempo real en 7 países | Márgenes por etapa | Señales de mercado",
     tab_pulse: "Pulso del Mercado", tab_signals: "Señales de Negocio", tab_herd: "Portafolio del Rodeo",
     tab_simulator: "Simulador de Escenarios", tab_prices: "Precios",
-    tab_spreads: "Comparación Internacional", tab_classes: "Clases V1",
+    tab_spreads: "Comparación Internacional", tab_classes: "Clases V1", tab_bands: "Bandas Históricas", h_bands_detail: "Estadísticas de Banda de Precio",
     country_label: "País:", trade_label: "Operación", head_label: "Número de Cabezas",
     weight_label: "Peso de Entrada (kg)", run_btn: "Ejecutar Simulación",
     all_countries: "Todos los Países", loading: "Cargando...",
@@ -554,6 +578,53 @@ function applyTranslations() {
   if (simSub) simSub.textContent = tr.h_sim_sub || simSub.textContent;
 }
 
+
+async function loadBands() {
+  const country = document.getElementById('bands-country').value;
+  try {
+    const data = await fetch(API+'/prices?country='+country+'&limit=500').then(r=>r.json());
+    if (!data.length) { document.getElementById('bands-stats').innerHTML='<div class="loading">No data</div>'; return; }
+    // Group by year
+    const byYear = {};
+    data.forEach(p => {
+      const yr = p.date.substring(0,4);
+      if (!byYear[yr]) byYear[yr]=[];
+      byYear[yr].push(p.price_per_kg_usd);
+    });
+    const years = Object.keys(byYear).sort();
+    const percentile = (arr,p) => { const s=[...arr].sort((a,b)=>a-b); const i=Math.floor(s.length*p); return s[Math.min(i,s.length-1)]; };
+    const p10=years.map(y=>percentile(byYear[y],0.1));
+    const p25=years.map(y=>percentile(byYear[y],0.25));
+    const p50=years.map(y=>percentile(byYear[y],0.5));
+    const p75=years.map(y=>percentile(byYear[y],0.75));
+    const p90=years.map(y=>percentile(byYear[y],0.9));
+    const avg=years.map(y=>byYear[y].reduce((a,b)=>a+b,0)/byYear[y].length);
+    if (charts.bands) charts.bands.destroy();
+    charts.bands = new Chart(document.getElementById('bandsChart'), {
+      type:'line',
+      data:{labels:years, datasets:[
+        {label:'90th',data:p90,borderColor:'rgba(239,68,68,0.3)',backgroundColor:'rgba(239,68,68,0.05)',fill:'+1',pointRadius:0},
+        {label:'75th',data:p75,borderColor:'rgba(251,191,36,0.3)',backgroundColor:'rgba(251,191,36,0.1)',fill:'+1',pointRadius:0},
+        {label:'Median',data:p50,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.1)',fill:false,borderWidth:2,pointRadius:3},
+        {label:'25th',data:p25,borderColor:'rgba(251,191,36,0.3)',backgroundColor:'rgba(251,191,36,0.1)',fill:'+1',pointRadius:0},
+        {label:'10th',data:p10,borderColor:'rgba(239,68,68,0.3)',backgroundColor:'rgba(239,68,68,0.05)',fill:false,pointRadius:0},
+        {label:'Average',data:avg,borderColor:'#3b82f6',borderWidth:2,borderDash:[5,5],fill:false,pointRadius:2}
+      ]},
+      options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{y:{ticks:{color:'#64748b',callback:v=>'$'+v.toFixed(2)},grid:{color:'#1e293b'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
+    });
+    // Stats table
+    const latest=years[years.length-1];
+    const lp=byYear[latest];
+    const latestAvg=lp.reduce((a,b)=>a+b,0)/lp.length;
+    document.getElementById('bands-stats').innerHTML='<table><tr><th>Metric</th><th>Value</th></tr>'+
+      '<tr><td>Latest Year</td><td>'+latest+'</td></tr>'+
+      '<tr><td>Avg Price</td><td>$'+latestAvg.toFixed(2)+'/kg</td></tr>'+
+      '<tr><td>10th Pctl</td><td>$'+percentile(lp,0.1).toFixed(2)+'</td></tr>'+
+      '<tr><td>Median</td><td>$'+percentile(lp,0.5).toFixed(2)+'</td></tr>'+
+      '<tr><td>90th Pctl</td><td>$'+percentile(lp,0.9).toFixed(2)+'</td></tr>'+
+      '<tr><td>Records</td><td>'+lp.length+'</td></tr></table>';
+  } catch(e) { console.error('Bands error:',e); }
+}
 // Initialize
 loadPulse();
 </script>
