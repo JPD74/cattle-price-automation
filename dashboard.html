@@ -575,56 +575,6 @@ function applyTranslations() {
 }
 
 
-
-    
-    };
-    charts.bands = new Chart(document.getElementById('bandsChart'), {
-      type: 'line',
-      data: {
-        labels: years,
-        datasets: [{
-          label: 'Actual Price',
-          data: yearlyAvg,
-          borderColor: 'rgba(255,255,255,0.9)',
-          backgroundColor: 'rgba(255,255,255,0.1)',
-          borderWidth: 2.5,
-          pointBackgroundColor: 'rgba(255,255,255,0.8)',
-          pointRadius: 4,
-          fill: false,
-          tension: 0.1
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: {display: false},
-          tooltip: {callbacks: {label: ctx => '$'+ctx.parsed.y.toFixed(2)+'/kg'}}
-        },
-        scales: {
-          y: {
-            min: p0*0.9,
-            max: p100*1.1,
-            ticks: {color:'#94a3b8', callback: v=>'$'+v.toFixed(2)},
-            grid: {color:'rgba(255,255,255,0.05)'}
-          },
-          x: {ticks:{color:'#94a3b8'}, grid:{display:false}}
-        }
-      },
-      plugins: [bandPlugin]
-    });
-    // Custom legend for bands
-    document.getElementById('bands-stats').innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;">'+
-      '<span style="display:flex;align-items:center;gap:4px;"><span style="width:16px;height:16px;background:rgba(96,165,250,0.6);border-radius:2px;"></span><small style="color:#94a3b8;">Extremely High (90-100th)</small></span>'+
-      '<span style="display:flex;align-items:center;gap:4px;"><span style="width:16px;height:16px;background:rgba(74,222,128,0.55);border-radius:2px;"></span><small style="color:#94a3b8;">Well Above Avg (75-90th)</small></span>'+
-      '<span style="display:flex;align-items:center;gap:4px;"><span style="width:16px;height:16px;background:rgba(163,190,80,0.5);border-radius:2px;"></span><small style="color:#94a3b8;">Average (50-75th)</small></span>'+
-      '<span style="display:flex;align-items:center;gap:4px;"><span style="width:16px;height:16px;background:rgba(140,160,60,0.5);border-radius:2px;"></span><small style="color:#94a3b8;">Average (25-50th)</small></span>'+
-      '<span style="display:flex;align-items:center;gap:4px;"><span style="width:16px;height:16px;background:rgba(180,120,40,0.55);border-radius:2px;"></span><small style="color:#94a3b8;">Well Below Avg (10-25th)</small></span>'+
-      '<span style="display:flex;align-items:center;gap:4px;"><span style="width:16px;height:16px;background:rgba(239,68,68,0.45);border-radius:2px;"></span><small style="color:#94a3b8;">Extremely Low (0-10th)</small></span>'+
-      '<span style="display:flex;align-items:center;gap:4px;"><span style="width:16px;height:3px;background:rgba(255,255,255,0.9);border-radius:1px;"></span><small style="color:#94a3b8;">Actual Price</small></span>'+
-      '</div>';
-  } catch(e) { console.error('Bands error:',e); }
-}
-
 async function loadBands() {
   try {
     const country = document.getElementById('bands-country').value;
@@ -634,13 +584,7 @@ async function loadBands() {
     if (!data.length) { document.getElementById('bands-stats').innerHTML='<p>No data</p>'; return; }
     const prices = data.map(p => p.price_per_kg_usd).filter(p => p > 0);
     const byYear = {};
-    data.forEach(p => {
-      if(p.price_per_kg_usd>0){
-        const yr=p.date.substring(0,4);
-        if(!byYear[yr])byYear[yr]=[];
-        byYear[yr].push(p.price_per_kg_usd);
-      }
-    });
+    data.forEach(p => { if(p.price_per_kg_usd>0){ const yr=p.date.substring(0,4); if(!byYear[yr])byYear[yr]=[]; byYear[yr].push(p.price_per_kg_usd); }});
     const years = Object.keys(byYear).sort();
     const sorted = [...prices].sort((a,b)=>a-b);
     const pct = (p) => sorted[Math.min(Math.floor(sorted.length*p), sorted.length-1)];
@@ -651,24 +595,13 @@ async function loadBands() {
     if (charts.bands) charts.bands.destroy();
     const bp = {id:'bandBg', beforeDraw(chart){
       const{ctx,chartArea:{left,right,top,bottom},scales:{y}}=chart;
-      [{mn:p90,mx:p100*1.05,c:'rgba(96,165,250,0.45)'},
-       {mn:p75,mx:p90,c:'rgba(74,222,128,0.40)'},
-       {mn:p50,mx:p75,c:'rgba(163,190,80,0.35)'},
-       {mn:p25,mx:p50,c:'rgba(140,160,60,0.35)'},
-       {mn:p10,mx:p25,c:'rgba(180,120,40,0.40)'},
-       {mn:p0*0.95,mx:p10,c:'rgba(239,68,68,0.30)'}].forEach(b=>{
+      [{mn:p90,mx:p100*1.05,c:'rgba(96,165,250,0.45)'},{mn:p75,mx:p90,c:'rgba(74,222,128,0.40)'},{mn:p50,mx:p75,c:'rgba(163,190,80,0.35)'},{mn:p25,mx:p50,c:'rgba(140,160,60,0.35)'},{mn:p10,mx:p25,c:'rgba(180,120,40,0.40)'},{mn:p0*0.95,mx:p10,c:'rgba(239,68,68,0.30)'}].forEach(b=>{
         const yt=y.getPixelForValue(b.mx),yb=y.getPixelForValue(b.mn);
-        ctx.fillStyle=b.c;
-        ctx.fillRect(left,Math.max(yt,top),right-left,Math.min(yb,bottom)-Math.max(yt,top));
+        ctx.fillStyle=b.c;ctx.fillRect(left,Math.max(yt,top),right-left,Math.min(yb,bottom)-Math.max(yt,top));
       });
     }};
-    charts.bands = new Chart(document.getElementById('bandsChart'),{
-      type:'line',
-      data:{labels:years,datasets:[{label:'Actual Price',data:yearlyAvg,borderColor:'rgba(255,255,255,0.9)',backgroundColor:'rgba(255,255,255,0.1)',borderWidth:2.5,pointBackgroundColor:'rgba(255,255,255,0.8)',pointRadius:4,fill:false,tension:0.1}]},
-      options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.parsed.y.toFixed(2)+'/kg'}}},scales:{y:{min:p0*0.9,max:p100*1.1,ticks:{color:'#94a3b8',callback:v=>'$'+v.toFixed(2)},grid:{color:'rgba(255,255,255,0.05)'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}},
-      plugins:[bp]
-    });
-    document.getElementById('bands-stats').innerHTML='<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px">'+ '<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(96,165,250,0.6);border-radius:2px"></span><small style="color:#94a3b8">Extremely High (90-100th)</small></span>'+ '<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(74,222,128,0.55);border-radius:2px"></span><small style="color:#94a3b8">Well Above Avg (75-90th)</small></span>'+ '<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(163,190,80,0.5);border-radius:2px"></span><small style="color:#94a3b8">Average High (50-75th)</small></span>'+ '<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(140,160,60,0.5);border-radius:2px"></span><small style="color:#94a3b8">Average Low (25-50th)</small></span>'+ '<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(180,120,40,0.55);border-radius:2px"></span><small style="color:#94a3b8">Well Below Avg (10-25th)</small></span>'+ '<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(239,68,68,0.45);border-radius:2px"></span><small style="color:#94a3b8">Extremely Low (0-10th)</small></span>'+ '<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:3px;background:rgba(255,255,255,0.9);border-radius:1px"></span><small style="color:#94a3b8">Actual Price</small></span>'+ '</div>';
+    charts.bands = new Chart(document.getElementById('bandsChart'),{type:'line',data:{labels:years,datasets:[{label:'Actual Price',data:yearlyAvg,borderColor:'rgba(255,255,255,0.9)',backgroundColor:'rgba(255,255,255,0.1)',borderWidth:2.5,pointBackgroundColor:'rgba(255,255,255,0.8)',pointRadius:4,fill:false,tension:0.1}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.parsed.y.toFixed(2)+'/kg'}}},scales:{y:{min:p0*0.9,max:p100*1.1,ticks:{color:'#94a3b8',callback:v=>'$'+v.toFixed(2)},grid:{color:'rgba(255,255,255,0.05)'}},x:{ticks:{color:'#94a3b8'},grid:{display:false}}}},plugins:[bp]});
+    document.getElementById('bands-stats').innerHTML='<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px">'+'<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(96,165,250,0.6);border-radius:2px"></span><small style="color:#94a3b8">Extremely High (90-100th)</small></span>'+'<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(74,222,128,0.55);border-radius:2px"></span><small style="color:#94a3b8">Well Above Avg (75-90th)</small></span>'+'<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(163,190,80,0.5);border-radius:2px"></span><small style="color:#94a3b8">Average High (50-75th)</small></span>'+'<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(140,160,60,0.5);border-radius:2px"></span><small style="color:#94a3b8">Average Low (25-50th)</small></span>'+'<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(180,120,40,0.55);border-radius:2px"></span><small style="color:#94a3b8">Well Below Avg (10-25th)</small></span>'+'<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:16px;background:rgba(239,68,68,0.45);border-radius:2px"></span><small style="color:#94a3b8">Extremely Low (0-10th)</small></span>'+'<span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:3px;background:rgba(255,255,255,0.9);border-radius:1px"></span><small style="color:#94a3b8">Actual Price</small></span>'+'</div>';
   } catch(e) { console.error('Bands error:',e); }
 }
 
