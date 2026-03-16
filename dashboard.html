@@ -579,7 +579,7 @@ async function loadBands() {
   try {
     const country = document.getElementById('bands-country').value;
     const names = {AU:'Australia - EYCI (Young Cattle)',BR:'Brazil - Boi Gordo',UY:'Uruguay - Novillo Gordo',PY:'Paraguay - Novillo Gordo',NZ:'New Zealand - Prime Steer',US:'USA - Fed Cattle',AR:'Argentina - Novillo'};
-    const resp = await fetch('/api/cattle/prices?country='+country);
+    const resp = await fetch('/prices?country='+country);
     const data = await resp.json();
     if (!data.length) { document.getElementById('bands-stats').innerHTML='<p>No data</p>'; return; }
     const prices = data.map(p => p.price_per_kg_usd).filter(p => p > 0);
